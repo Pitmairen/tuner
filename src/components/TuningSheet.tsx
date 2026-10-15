@@ -1,15 +1,18 @@
+import * as Haptics from 'expo-haptics';
 import { useState } from 'react';
 import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { colors } from '../theme';
-import { pitchClass } from '../tuner/notes';
+import { DEFAULT_A4, MAX_A4, MIN_A4, pitchClass } from '../tuner/notes';
 import { Tuning, TuningString, TUNINGS } from '../tuner/tunings';
 import { TuningEditor } from './TuningEditor';
 
 type Props = {
   visible: boolean;
   selected: Tuning;
+  a4: number;
+  onA4Change: (a4: number) => void;
   customTunings: Tuning[];
   onSelect: (tuning: Tuning) => void;
   onSaveCustom: (tuning: Tuning) => void;
@@ -21,6 +24,8 @@ type Props = {
 export function TuningSheet({
   visible,
   selected,
+  a4,
+  onA4Change,
   customTunings,
   onSelect,
   onSaveCustom,
@@ -76,6 +81,7 @@ export function TuningSheet({
               key={editing.tuning.id}
               initial={editing.tuning}
               isNew={editing.isNew}
+              a4={a4}
               onPlay={onPlay}
               onCancel={() => setEditing(null)}
               onSave={(tuning) => {
@@ -96,6 +102,8 @@ export function TuningSheet({
             <>
               <Text style={styles.title}>Choose tuning</Text>
               <ScrollView contentContainerStyle={styles.list}>
+                <ReferencePitch a4={a4} onChange={onA4Change} />
+
                 {TUNINGS.map(renderItem)}
 
                 <Text style={styles.section}>Custom</Text>
@@ -119,7 +127,102 @@ export function TuningSheet({
   );
 }
 
+/** A4 calibration: the pitch every other note is derived from. */
+function ReferencePitch({ a4, onChange }: { a4: number; onChange: (a4: number) => void }) {
+  const step = (delta: number) => {
+    const next = a4 + delta;
+    if (next < MIN_A4 || next > MAX_A4) return;
+    Haptics.selectionAsync();
+    onChange(next);
+  };
+  const isDefault = a4 === DEFAULT_A4;
+
+  return (
+    <View style={styles.reference}>
+      <View style={styles.itemText}>
+        <Text style={styles.itemName}>Reference pitch</Text>
+        {isDefault ? (
+          <Text style={styles.itemNotes}>Standard concert pitch</Text>
+        ) : (
+          <Pressable onPress={() => onChange(DEFAULT_A4)} hitSlop={8}>
+            <Text style={styles.reset}>Reset to {DEFAULT_A4} Hz</Text>
+          </Pressable>
+        )}
+      </View>
+      <Pressable
+        onPress={() => step(-1)}
+        disabled={a4 <= MIN_A4}
+        accessibilityLabel="Lower reference pitch"
+        style={({ pressed }) => [styles.step, a4 <= MIN_A4 && styles.disabled, pressed && styles.itemPressed]}
+      >
+        <Text style={styles.stepText}>−</Text>
+      </Pressable>
+      <View style={styles.a4Value} accessibilityLabel={`A4 equals ${a4} hertz`}>
+        <Text style={[styles.a4Number, !isDefault && styles.a4Changed]}>{a4}</Text>
+        <Text style={styles.a4Unit}>A4 · Hz</Text>
+      </View>
+      <Pressable
+        onPress={() => step(1)}
+        disabled={a4 >= MAX_A4}
+        accessibilityLabel="Raise reference pitch"
+        style={({ pressed }) => [styles.step, a4 >= MAX_A4 && styles.disabled, pressed && styles.itemPressed]}
+      >
+        <Text style={styles.stepText}>+</Text>
+      </Pressable>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
+  reference: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    marginBottom: 8,
+    borderRadius: 16,
+    backgroundColor: colors.background,
+  },
+  reset: {
+    color: colors.close,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  step: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: colors.surfaceRaised,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepText: {
+    color: colors.text,
+    fontSize: 20,
+    fontWeight: '600',
+  },
+  disabled: {
+    opacity: 0.35,
+  },
+  a4Value: {
+    width: 56,
+    alignItems: 'center',
+  },
+  a4Number: {
+    color: colors.text,
+    fontSize: 20,
+    fontWeight: '800',
+    fontVariant: ['tabular-nums'],
+  },
+  a4Changed: {
+    color: colors.close,
+  },
+  a4Unit: {
+    color: colors.muted,
+    fontSize: 11,
+    fontWeight: '600',
+  },
   root: {
     flex: 1,
     justifyContent: 'flex-end',

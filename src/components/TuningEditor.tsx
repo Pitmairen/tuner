@@ -16,13 +16,14 @@ type Props = {
   /** The tuning to edit, or the starting point for a new one. */
   initial: Tuning;
   isNew: boolean;
+  a4: number;
   onSave: (tuning: Tuning) => void;
   onDelete?: () => void;
   onCancel: () => void;
   onPlay: (string: TuningString) => void;
 };
 
-export function TuningEditor({ initial, isNew, onSave, onDelete, onCancel, onPlay }: Props) {
+export function TuningEditor({ initial, isNew, a4, onSave, onDelete, onCancel, onPlay }: Props) {
   const [name, setName] = useState(isNew ? '' : initial.name);
   const [midis, setMidis] = useState(() => initial.notes.map(parseNote));
   const trimmedName = name.trim();
@@ -83,7 +84,7 @@ export function TuningEditor({ initial, isNew, onSave, onDelete, onCancel, onPla
 
         {midis.map((midi, index) => {
           const note = toNote(midi);
-          const frequency = midiToFrequency(midi);
+          const frequency = midiToFrequency(midi, a4);
           return (
             <View key={index} style={styles.row}>
               <Text style={styles.stringNumber}>{midis.length - index}</Text>

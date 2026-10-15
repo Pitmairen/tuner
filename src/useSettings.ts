@@ -1,0 +1,41 @@
+import { useCallback, useState } from 'react';
+
+import { readJson, writeJson } from './storage';
+import { DEFAULT_A4, MAX_A4, MIN_A4 } from './tuner/notes';
+import { TUNINGS } from './tuner/tunings';
+
+const FILE_NAME = 'settings.json';
+
+export type Settings = {
+  /** May name a custom tuning that has since been deleted; callers fall back. */
+  tuningId: string;
+  /** Reference pitch in Hz. */
+  a4: number;
+};
+
+const DEFAULTS: Settings = { tuningId: TUNINGS[0].id, a4: DEFAULT_A4 };
+
+function load(): Settings {
+  const stored = readJson(FILE_NAME) as Partial<Record<keyof Settings, unknown>> | null;
+  const a4 = stored?.a4;
+  return {
+    tuningId: typeof stored?.tuningId === 'string' ? stored.tuningId : DEFAULTS.tuningId,
+    a4: typeof a4 === 'number' && Number.isInteger(a4) && a4 >= MIN_A4 && a4 <= MAX_A4 ? a4 : DEFAULTS.a4,
+  };
+}
+
+/** App settings, remembered between launches. */
+export function useSettings() {
+  const [settings, setSettings] = useState(load);
+
+  const update = useCallback(
+    (changes: Partial<Settings>) => {
+      const next = { ...settings, ...changes };
+      setSettings(next);
+      writeJson(FILE_NAME, next);
+    },
+    [settings],
+  );
+
+  return [settings, update] as const;
+}

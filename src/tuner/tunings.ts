@@ -28,9 +28,9 @@ export const TUNINGS: Tuning[] = [
   { id: 'open-c', name: 'Open C', notes: ['C2', 'G2', 'C3', 'G3', 'C4', 'E4'] },
 ];
 
-export function tuningStrings(tuning: Tuning): TuningString[] {
+export function tuningStrings(tuning: Tuning, a4?: number): TuningString[] {
   return tuning.notes.map((note) => {
     const midi = parseNote(note);
-    return { note, midi, frequency: midiToFrequency(midi) };
+    return { note, midi, frequency: midiToFrequency(midi, a4) };
   });
 }

@@ -8,12 +8,12 @@ import { MicOffIcon } from './src/components/icons';
 import { StringSelector } from './src/components/StringSelector';
 import { TuningSheet } from './src/components/TuningSheet';
 import { centsColor, colors } from './src/theme';
-import { pitchClass } from './src/tuner/notes';
+import { DEFAULT_A4, pitchClass } from './src/tuner/notes';
 import { TUNINGS } from './src/tuner/tunings';
 import { useCustomTunings } from './src/tuner/useCustomTunings';
-import { useLastTuningId } from './src/tuner/useLastTuningId';
 import { useReferenceTone } from './src/tuner/useReferenceTone';
 import { IN_TUNE_CENTS, useTuner } from './src/tuner/useTuner';
+import { useSettings } from './src/useSettings';
 
 export default function App() {
   return (
@@ -27,16 +27,17 @@ export default function App() {
 function TunerScreen() {
   const { width } = useWindowDimensions();
   const custom = useCustomTunings();
-  // Tracked by id so edits to (or deletion of) a custom tuning apply immediately.
-  const [tuningId, setTuningId] = useLastTuningId(TUNINGS[0].id);
-  const tuning = [...TUNINGS, ...custom.tunings].find((t) => t.id === tuningId) ?? TUNINGS[0];
+  // tuningId is tracked rather than the tuning itself so edits to (or deletion
+  // of) a custom tuning apply immediately.
+  const [settings, updateSettings] = useSettings();
+  const tuning = [...TUNINGS, ...custom.tunings].find((t) => t.id === settings.tuningId) ?? TUNINGS[0];
   const [lockedString, setLockedString] = useState<number | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [toneMode, setToneMode] = useState(false);
   const tone = useReferenceTone();
   // Stop listening while a reference note plays so the tuner doesn't hear itself.
   const paused = tone.playing != null;
-  const { reading, strings, tunedStrings, permission, retry } = useTuner(tuning, lockedString, paused);
+  const { reading, strings, tunedStrings, permission, retry } = useTuner(tuning, lockedString, settings.a4, paused);
 
   const cents = reading?.cents ?? null;
   const playingString = strings.find((s) => s.note === tone.playing);
@@ -54,6 +55,7 @@ function TunerScreen() {
             {tuning.name}
           </Text>
           <Text style={styles.tuningNotes}>{tuning.notes.map(pitchClass).join(' ')}</Text>
+          {settings.a4 !== DEFAULT_A4 && <Text style={styles.a4Tag}>A{settings.a4}</Text>}
           <Text style={styles.chevron}>▾</Text>
         </Pressable>
       </View>
@@ -122,13 +124,15 @@ function TunerScreen() {
       <TuningSheet
         visible={sheetOpen}
         selected={tuning}
+        a4={settings.a4}
+        onA4Change={(a4) => updateSettings({ a4 })}
         customTunings={custom.tunings}
         onSaveCustom={custom.save}
         onDeleteCustom={custom.remove}
         onPlay={tone.play}
         onClose={() => setSheetOpen(false)}
         onSelect={(next) => {
-          setTuningId(next.id);
+          updateSettings({ tuningId: next.id });
           setLockedString(null);
           setSheetOpen(false);
         }}
@@ -183,6 +187,16 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     letterSpacing: 1,
+  },
+  a4Tag: {
+    color: colors.close,
+    fontSize: 12,
+    fontWeight: '700',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    backgroundColor: 'rgba(255, 200, 87, 0.12)',
+    overflow: 'hidden',
   },
   chevron: {
     color: colors.muted,

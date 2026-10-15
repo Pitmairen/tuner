@@ -26,12 +26,12 @@ export type TunerReading = {
  * Combines live pitch with the selected tuning. With `lockedString` null the
  * nearest string is picked automatically. While `muted`, nothing is detected.
  */
-export function useTuner(tuning: Tuning, lockedString: number | null, muted = false) {
+export function useTuner(tuning: Tuning, lockedString: number | null, a4: number, muted = false) {
   const { frequency, permission, retry } = usePitch(muted);
-  const strings = useMemo(() => tuningStrings(tuning), [tuning]);
+  const strings = useMemo(() => tuningStrings(tuning, a4), [tuning, a4]);
   // Keyed by tuning (including its notes, since custom tunings can be edited)
   // so switching or editing starts with nothing checked off.
-  const tuningKey = `${tuning.id}:${tuning.notes.join(',')}`;
+  const tuningKey = `${tuning.id}:${tuning.notes.join(',')}@${a4}`;
   const [tuned, setTuned] = useState({ tuningKey, strings: new Set<number>() });
   const tunedStrings = tuned.tuningKey === tuningKey ? tuned.strings : NO_STRINGS;
   const pending = useRef<{ stringIndex: number; tuned: boolean; since: number } | null>(null);
@@ -41,11 +41,11 @@ export function useTuner(tuning: Tuning, lockedString: number | null, muted = fa
     const stringIndex = lockedString ?? nearestString(strings, frequency);
     return {
       frequency,
-      detected: noteName(frequencyToMidi(frequency)),
+      detected: noteName(frequencyToMidi(frequency, a4)),
       stringIndex,
       cents: centsBetween(frequency, strings[stringIndex].frequency),
     };
-  }, [frequency, lockedString, strings]);
+  }, [frequency, lockedString, strings, a4]);
 
   useEffect(() => {
     if (!reading) {
