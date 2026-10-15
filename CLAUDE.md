@@ -133,10 +133,14 @@ heard notes and costs ≤ 5 more than the first.
 
 ## Open items
 
-- Google Play release prep: block unneeded permissions (storage, overlay),
-  privacy policy URL, listing text + data safety answers, 1024×500 feature
-  graphic, an `eas.json` submit profile. New personal accounts need a closed
-  test (≈12 testers × 14 days) before production.
+- Google Play: prepared in the repo: storage/overlay permissions blocked
+  (`android.blockedPermissions`), privacy policy `docs/privacy-policy.html`
+  (fill in name/email, then host it, e.g. GitHub Pages from `docs/`), listing
+  text and Play Console answers in `store/listing.md`, Play icon + feature
+  graphic in `store/` (from `generate-icons.mjs … assets store`), and an
+  `eas.json` submit profile (internal track, draft). Still to do by the user:
+  developer account, screenshots, production build + `eas submit`, and for new
+  personal accounts a closed test (≈12 testers × 14 days) before production.
 - Fingerpicking in chord mode is the weakest case (~1 s lag, passing chords).
 - Not recognised: 6, m6, 9, m(add9) and other extended chords.
 - Silence gate is a fixed level (−34 dB); a quiet phone mic could fall under it.

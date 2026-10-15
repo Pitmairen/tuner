@@ -4,12 +4,13 @@
 //
 // Usage (resvg-js isn't a project dependency; install it anywhere):
 //   npm install --prefix /tmp/resvg @resvg/resvg-js
-//   node scripts/generate-icons.mjs /tmp/resvg/node_modules/@resvg/resvg-js assets
+//   node scripts/generate-icons.mjs /tmp/resvg/node_modules/@resvg/resvg-js assets [store]
+// With a third argument it also renders the Google Play graphics there.
 import { createRequire } from 'node:module';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
-const [, , resvgPath, outDir] = process.argv;
+const [, , resvgPath, outDir, storeDir] = process.argv;
 const { Resvg } = createRequire(import.meta.url)(resvgPath);
 mkdirSync(outDir, { recursive: true });
 
@@ -68,9 +69,9 @@ function svg({ background, scale, mono = false }) {
   </svg>`;
 }
 
-function render(name, svgText, size = 1024) {
+function render(name, svgText, size = 1024, dir = outDir) {
   const png = new Resvg(svgText, { fitTo: { mode: 'width', value: size } }).render().asPng();
-  writeFileSync(join(outDir, name), png);
+  writeFileSync(join(dir, name), png);
   console.log(name, size, png.length, 'bytes');
 }
 
@@ -86,3 +87,19 @@ render('android-icon-monochrome.png', svg({ background: false, scale: ADAPTIVE, 
 // Splash: transparent gauge on the app's background colour.
 render('splash-icon.png', svg({ background: false, scale: SIZE }));
 render('favicon.png', svg({ background: true, scale: SIZE }), 48);
+
+if (storeDir) {
+  mkdirSync(storeDir, { recursive: true });
+  // Google Play listing icon: 512×512, full-bleed (Play applies its own mask).
+  render('play-icon-512.png', svg({ background: true, scale: SIZE }), 512, storeDir);
+  // Feature graphic: 1024×500, the gauge on the left and the name on the right.
+  const font = 'Helvetica Neue, Helvetica, Arial, sans-serif';
+  const feature = `<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="500" viewBox="0 0 1024 500">
+    <rect width="1024" height="500" fill="${BG}"/>
+    <g transform="translate(290 250) scale(0.5) translate(-512 -${MIDDLE})">${gauge()}</g>
+    <text x="560" y="232" fill="#F4F6FB" font-family="${font}" font-size="104" font-weight="800" letter-spacing="-3">Tuner</text>
+    <text x="564" y="292" fill="#9AA3B5" font-family="${font}" font-size="30" font-weight="600">Guitar · Bass · Ukulele</text>
+    <text x="564" y="340" fill="${MINT}" font-family="${font}" font-size="30" font-weight="600">Tune and name your chords</text>
+  </svg>`;
+  render('feature-graphic.png', feature, 1024, storeDir);
+}
