@@ -32,5 +32,14 @@
       "D"
     ],
     "note": "Cadd9, Dsus4, D. Was recorded as just C and D."
+  },
+  {
+    "file": "real-dsus4-d-switching.wav",
+    "mode": "chords",
+    "expect": [
+      "Dsus4",
+      "D"
+    ],
+    "note": "Dsus4 then D (with the open A string). Chords were right, but the D diagram showed 10-0-0-7-7-10; see the fingerings device-regression test."
   }
 ]

@@ -152,7 +152,9 @@ function evaluate(
 ): Fingering | null {
   const sounding = frets.flatMap((f, s) => (f == null ? [] : [{ string: s, fret: f, midi: tuning[s] + f }]));
   if (sounding.length < minStrings) return null;
-  if (!reentrant && sounding[0].midi % 12 !== chord.bass) return null;
+  // The bass is the lowest *pitch*, which isn't always on the lowest string
+  // (10-0-0-7-7-10 has an open A below the low string's D).
+  if (!reentrant && Math.min(...sounding.map((n) => n.midi)) % 12 !== chord.bass) return null;
 
   const present = new Set(sounding.map((n) => n.midi % 12));
   let omittedFifth = false;
@@ -232,6 +234,12 @@ function evaluate(
  */
 /** How much more of the heard notes a shape must explain to jump the queue. */
 const CLEARLY_BETTER = 0.15;
+/**
+ * ...and how much harder (in score) it may be than the first shape. A barre
+ * C at the 3rd fret (+4.2 over the open C) qualifies; a far-up-the-neck shape
+ * that happens to include an open string someone hit (+7) doesn't.
+ */
+const MAX_PROMOTION_COST = 5;
 
 export function rankByHeard(fingerings: Fingering[], heard: number[], { tuning } = GUITAR): Fingering[] {
   if (fingerings.length === 0 || heard.length === 0) return fingerings;
@@ -243,7 +251,8 @@ export function rankByHeard(fingerings: Fingering[], heard: number[], { tuning }
     const notes = new Set(f.frets.flatMap((fret, s) => (fret == null ? [] : [tuning[s] + fret])));
     return [...heardSet].filter((n) => notes.has(n)).length / heardSet.size;
   };
-  const scored = fingerings.map((f, i) => ({ f, i, coverage: coverage(f) }));
+  const limit = fingerings[0].score + MAX_PROMOTION_COST;
+  const scored = fingerings.map((f, i) => ({ f, i, coverage: f.score <= limit ? coverage(f) : -1 }));
   // Keep the natural order unless another shape clearly matches better,
   // e.g. a barre C at the 3rd fret rather than the open C.
   const best = scored.reduce((a, b) => (b.coverage > a.coverage + CLEARLY_BETTER ? b : a));

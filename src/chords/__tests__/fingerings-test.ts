@@ -272,3 +272,14 @@ describe('chord book', () => {
 function shape_(frets: (number | null)[]) {
   return frets.map((f) => f ?? 'x').join('');
 }
+
+describe('device regressions', () => {
+  it('shows the standard D after Dsus4, even with the open A string ringing', () => {
+    // From a phone recording: switching from Dsus4 to D, heard A2 D3 F#4.
+    // The diagram showed 10-0-0-7-7-10 (really a D/A, with the open A as
+    // its lowest note).
+    const options = findFingerings({ root: pc('D'), quality: 'maj', bass: pc('D') }, GUITAR, 12);
+    expect(options.map((f) => shape(f.frets))).not.toContain('10007710');
+    expect(shape(rankByHeard(options, [45, 50, 66])[0].frets)).toBe('xx0232');
+  });
+});
