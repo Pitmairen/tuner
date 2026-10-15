@@ -1,4 +1,4 @@
-import { Chord, chordName, chordPitchClasses, TEMPLATES } from './chords';
+import { Chord, chordName, chordPitchClasses, COLOR_TONE_MIN, TEMPLATES } from './chords';
 import { magnitudeSpectrum } from './fft';
 
 export type DetectedNote = {
@@ -103,8 +103,19 @@ export function matchChord(
   ignoreBass = false,
 ): Pick<ChordResult, 'chord' | 'name' | 'confidence'> | null {
   if (pitchClasses.filter((w) => w > 0).length < 2) return null;
-  const [best, second] = rankChords(pitchClasses, ignoreBass ? null : lowest);
-  if (best.score <= 0) return null;
+  const ranked = rankChords(pitchClasses, ignoreBass ? null : lowest);
+  if (ranked[0].score <= 0) return null;
+  // Chords sharing every note (Dsus4 / Gsus2) are one finding with two
+  // names. The bass picks the name: its root, else the chord it's the 5th of
+  // (the open A under a strummed Dsus4).
+  const toneSet = (r: Ranked) => chordPitchClasses(r.root, r.quality).sort().join();
+  const twins = ranked.filter((r) => toneSet(r) === toneSet(ranked[0]));
+  const best =
+    ignoreBass || ranked[0].root === lowest
+      ? ranked[0]
+      : (twins.find((r) => r.root === lowest) ?? twins.find((r) => (r.root + 7) % 12 === lowest) ?? ranked[0]);
+  // Confidence is against the best chord with different notes.
+  const second = ranked.find((r) => toneSet(r) !== toneSet(best)) ?? ranked[1];
   // Name an inversion only when it's likely deliberate: the bass must be a
   // chord tone, and a 5th in the bass is usually an extra open string (the
   // A under a strummed open D), so D/A is reported as D.
@@ -257,7 +268,8 @@ type Ranked = { root: number; quality: Chord['quality']; score: number };
 function rankChords(pitchClasses: number[], bass: number | null): Ranked[] {
   const ranked: Ranked[] = [];
   for (let root = 0; root < 12; root++) {
-    for (const { quality, intervals, prior } of TEMPLATES) {
+    for (const { quality, intervals, prior, colorTones = [] } of TEMPLATES) {
+      if (colorTones.some((i) => pitchClasses[(root + i) % 12] < COLOR_TONE_MIN)) continue;
       const members = new Set(intervals.map((i) => (root + i) % 12));
       let present = 0;
       let extra = 0;

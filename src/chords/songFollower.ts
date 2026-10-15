@@ -87,6 +87,12 @@ const BASS_EVIDENCE = 1;
  * them. With 10 cycles, low strings only count once the window has grown.
  */
 const MIN_CYCLES = 10;
+/**
+ * Quieter than this (RMS of the analysed window, about −34 dB) counts as
+ * silence: string noise and handling sounds are around −40 to −50 dB on a
+ * phone, strummed chords around −15 to −25 dB.
+ */
+const SILENCE_RMS = 0.02;
 /** Silence after which the current chord clears. */
 const SILENCE_CLEAR_S = 1.5;
 /** A history entry shorter than this was a misreading and is dropped. */
@@ -213,7 +219,10 @@ export class SongFollower {
     const window = new Float32Array(length);
     for (let i = 0; i < length; i++) window[i] = this.buffer[(start + i) % this.buffer.length];
     const minFrequency = MIN_CYCLES / (length / this.sampleRate);
-    const heard = detectNotes(window, this.sampleRate, this.options.a4, minFrequency) ?? [];
+    let power = 0;
+    for (let i = 0; i < window.length; i++) power += window[i] * window[i];
+    const loud = Math.sqrt(power / window.length) >= SILENCE_RMS;
+    const heard = (loud && detectNotes(window, this.sampleRate, this.options.a4, minFrequency)) || [];
     const firstAfterStrum = !this.analysedSinceOnset;
     this.analysedSinceOnset = true;
 
@@ -261,8 +270,10 @@ export class SongFollower {
       return;
     }
 
+    // Strengths are relative within each analysis, so a fading chord keeps its
+    // proportions; once the running average itself has faded, nothing's playing.
     const strongest = Math.max(...this.notes);
-    if (strongest === 0) return;
+    if (strongest < NOTE_FLOOR) return;
     const profile = this.notes.map((w) => (w / strongest >= NOTE_FLOOR ? w / strongest : 0));
     // A real bass note shows up analysis after analysis; a phantom (a stray
     // G2 under Am7) comes and goes. So the bass is the lowest note with

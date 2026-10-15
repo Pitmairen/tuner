@@ -78,6 +78,8 @@ describe('accuracy on synthesized strums', () => {
     triads: 0.95,
     sevenths: 0.95,
     sus: 0.95,
+    // Four open shapes only, so one miss in 16 strums is 6%.
+    add9: 0.85,
     power: 0.95,
     'dim/aug': 0.95,
     // Few samples (12), and the hardest family: one miss is 8%.

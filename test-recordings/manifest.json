@@ -8,5 +8,29 @@
       "Em"
     ],
     "note": "Strumming Em, then D, then Em again, recorded in the app (first device test, 2026-10-15). Was heard as Em/B, Em/G#, D/A and a trailing Edim."
+  },
+  {
+    "file": "real-string-noise.wav",
+    "mode": "chords",
+    "expect": [],
+    "note": "Nothing played, just string and handling noise (~-48 dB). Was heard as Bmaj7, Faug, F#maj7, A#maj7/A, Gmaj7/F#."
+  },
+  {
+    "file": "real-dsus4.wav",
+    "mode": "chords",
+    "expect": [
+      "Dsus4"
+    ],
+    "note": "Strumming Dsus4 (with the open A string). Shares its notes with Gsus2; was never shown, F#maj7 appeared as it faded."
+  },
+  {
+    "file": "real-cadd9-dsus4-d.wav",
+    "mode": "chords",
+    "expect": [
+      "Cadd9",
+      "Dsus4",
+      "D"
+    ],
+    "note": "Cadd9, Dsus4, D. Was recorded as just C and D."
   }
 ]
