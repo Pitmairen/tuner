@@ -8,7 +8,7 @@
     "userInterfaceStyle": "dark",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.permyren.guitartuner"
+      "bundleIdentifier": "net.myr1.tuner"
     },
     "android": {
       "adaptiveIcon": {
@@ -17,7 +17,13 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.permyren.guitartuner"
+      "package": "net.myr1.tuner",
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -41,6 +47,12 @@
       ],
       "expo-sharing"
     ],
-    "backgroundColor": "#0B0D12"
+    "backgroundColor": "#0B0D12",
+    "extra": {
+      "eas": {
+        "projectId": "ec8153dc-21ec-4f25-98c1-9d389041ee94"
+      }
+    },
+    "owner": "pitmairen"
   }
 }
