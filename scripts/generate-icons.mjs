@@ -1,5 +1,6 @@
 // Renders the app icon, Android adaptive icon layers, splash image and favicon
-// from the gauge design below.
+// from the gauge design below: a mint needle pointing into the in-tune zone of
+// a grey arc, on a flat dark background.
 //
 // Usage (resvg-js isn't a project dependency; install it anywhere):
 //   npm install --prefix /tmp/resvg @resvg/resvg-js
@@ -12,15 +13,22 @@ const [, , resvgPath, outDir] = process.argv;
 const { Resvg } = createRequire(import.meta.url)(resvgPath);
 mkdirSync(outDir, { recursive: true });
 
-const BG = '#0B0D12';
-const BG_LIGHT = '#171C27';
-const TRACK = '#2A3242';
+/** Flat icon background; also the adaptive icon's backgroundColor in app.json. */
+const BG = '#0F131B';
+const TRACK = '#6B7690';
 const MINT = '#4DF2B0';
 
+// The gauge in its own coordinates: pivot at (CX, CY), arc of radius R.
 const CX = 512;
-const CY = 645;
-const R = 300;
+const CY = 640;
+const R = 380;
 const SWEEP = 62;
+const ZONE = 11;
+const STROKE = 78;
+/** Vertical middle of the drawn gauge (arc top to hub bottom), used to centre it. */
+const MIDDLE = 464;
+/** Size of the gauge on the visible icon (1 = as drawn above). */
+const SIZE = 1.15;
 
 const polar = (deg, r) => {
   const t = (deg * Math.PI) / 180;
@@ -32,48 +40,31 @@ const arc = (from, to, r) => {
   return `M ${x1.toFixed(1)} ${y1.toFixed(1)} A ${r} ${r} 0 0 1 ${x2.toFixed(1)} ${y2.toFixed(1)}`;
 };
 
-/** The gauge mark. `mono` draws everything in one colour (Android themed icons). */
-function mark({ mono = false, glow = true } = {}) {
+/** The gauge. `mono` draws it in one colour for Android themed icons. */
+function gauge({ mono = false } = {}) {
   const track = mono ? '#FFFFFF' : TRACK;
   const accent = mono ? '#FFFFFF' : MINT;
-  const ticks = [-25, 25]
-    .map((c) => {
-      const deg = (c / 50) * SWEEP;
-      const [x1, y1] = polar(deg, R - 46);
-      const [x2, y2] = polar(deg, R - 86);
-      return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${track}" stroke-width="16" stroke-linecap="round" ${mono ? 'opacity="0.6"' : ''}/>`;
-    })
-    .join('');
-  const [nx, ny] = polar(0, R - 64);
-  // Starts at the hub's edge so it doesn't show through the hollow monochrome hub.
-  const needle = `<line x1="${CX}" y1="${CY - 55}" x2="${nx}" y2="${ny}" stroke="${accent}" stroke-width="34" stroke-linecap="round"/>`;
+  const [nx, ny] = polar(0, R - 70);
+  // In one colour the hub is a hollow ring, so the needle starts at its edge
+  // rather than poking into the hole.
+  const needleStart = mono ? CY - 67 : CY - 40;
   return `
-    <path d="${arc(-SWEEP, SWEEP, R)}" stroke="${track}" stroke-width="44" stroke-linecap="round" fill="none" ${mono ? 'opacity="0.6"' : ''}/>
-    ${ticks}
-    <path d="${arc(-9, 9, R)}" stroke="${accent}" stroke-width="44" stroke-linecap="round" fill="none"/>
-    ${glow && !mono ? `<g filter="url(#glow)" opacity="0.75"><line x1="${CX}" y1="${CY}" x2="${nx}" y2="${ny}" stroke="${accent}" stroke-width="70" stroke-linecap="round"/><path d="${arc(-9, 9, R)}" stroke="${accent}" stroke-width="70" stroke-linecap="round" fill="none"/></g>` : ''}
-    ${needle}
-    <circle cx="${CX}" cy="${CY}" r="44" fill="${mono ? 'none' : BG}" stroke="${accent}" stroke-width="22"/>`;
+    <path d="${arc(-SWEEP, SWEEP, R)}" stroke="${track}" stroke-width="${STROKE}" stroke-linecap="round" fill="none" ${mono ? 'opacity="0.6"' : ''}/>
+    <path d="${arc(-ZONE, ZONE, R)}" stroke="${accent}" stroke-width="${STROKE}" stroke-linecap="round" fill="none"/>
+    <line x1="${CX}" y1="${needleStart}" x2="${nx}" y2="${ny}" stroke="${accent}" stroke-width="56" stroke-linecap="round"/>
+    <circle cx="${CX}" cy="${CY}" r="52" fill="${mono ? 'none' : BG}" stroke="${accent}" stroke-width="30"/>`;
 }
 
-const defs = `
-  <defs>
-    <radialGradient id="bg" cx="50%" cy="45%" r="70%">
-      <stop offset="0%" stop-color="${BG_LIGHT}"/>
-      <stop offset="100%" stop-color="${BG}"/>
-    </radialGradient>
-    <filter id="glow" filterUnits="userSpaceOnUse" x="-512" y="-512" width="2048" height="2048">
-      <feGaussianBlur stdDeviation="34"/>
-    </filter>
-  </defs>`;
-
-/** `scale` shrinks the mark about the canvas centre (Android safe zone). */
-function svg({ background, scale = 1, mono = false }) {
-  const t = `translate(512 512) scale(${scale}) translate(-512 -512)`;
+/**
+ * A 1024×1024 image with the gauge centred and scaled by `scale`.
+ * Full-bleed icons use SIZE. Android adaptive layers are 108dp of which only
+ * the middle 72dp shows, so the gauge is scaled by 72/108 to look the same.
+ */
+function svg({ background, scale, mono = false }) {
+  const t = `translate(512 512) scale(${scale}) translate(-512 -${MIDDLE})`;
   return `<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
-    ${defs}
-    ${background ? '<rect width="1024" height="1024" fill="url(#bg)"/>' : ''}
-    <g transform="${t}">${mark({ mono })}</g>
+    ${background ? `<rect width="1024" height="1024" fill="${BG}"/>` : ''}
+    <g transform="${t}">${gauge({ mono })}</g>
   </svg>`;
 }
 
@@ -83,11 +74,15 @@ function render(name, svgText, size = 1024) {
   console.log(name, size, png.length, 'bytes');
 }
 
+// A little smaller on the adaptive layer: the arc's rounded ends point down and
+// would otherwise touch the edge of Android's 66dp safe zone.
+const ADAPTIVE = SIZE * (72 / 108) * 0.94;
+
 // iOS / default icon: full-bleed and opaque (the OS applies the mask).
-render('icon.png', svg({ background: true, scale: 1.2 }));
-// Android adaptive icon: transparent foreground kept within the ~61% safe zone.
-render('android-icon-foreground.png', svg({ background: false, scale: 0.82 }));
-render('android-icon-monochrome.png', svg({ background: false, scale: 0.82, mono: true }));
-// Splash: transparent mark on the configured background colour.
-render('splash-icon.png', svg({ background: false }));
-render('favicon.png', svg({ background: true, scale: 1.2 }), 48);
+render('icon.png', svg({ background: true, scale: SIZE }));
+// Android adaptive icon: transparent foreground on the BG background colour.
+render('android-icon-foreground.png', svg({ background: false, scale: ADAPTIVE }));
+render('android-icon-monochrome.png', svg({ background: false, scale: ADAPTIVE, mono: true }));
+// Splash: transparent gauge on the app's background colour.
+render('splash-icon.png', svg({ background: false, scale: SIZE }));
+render('favicon.png', svg({ background: true, scale: SIZE }), 48);
