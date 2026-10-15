@@ -1,9 +1,10 @@
 import * as Haptics from 'expo-haptics';
 import { useKeepAwake } from 'expo-keep-awake';
 import { useEffect, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Alert, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { shareClip } from '../audio/shareClip';
 import { FRET_INSTRUMENTS } from '../chords/fingerings';
 import { HistoryEntry } from '../chords/songFollower';
 import { ChordDiagramSheet } from '../components/ChordDiagramSheet';
@@ -59,6 +60,7 @@ export function TunerScreen() {
     chord,
     chordHistory,
     clearChordHistory,
+    recentAudio,
     strings,
     tunedStrings,
     celebration,
@@ -85,6 +87,23 @@ export function TunerScreen() {
 
   const playingString = strings.find((s) => s.note === tone.playing);
   const idleTarget = playingString ?? (lockedString != null ? strings[lockedString] : null);
+
+  /** Saves the last few seconds of audio, named after what was on screen, and shares it. */
+  const shareRecentAudio = () => {
+    const clip = recentAudio();
+    if (!clip) {
+      Alert.alert('Nothing to share yet', 'Play something first, then share right after.');
+      return;
+    }
+    const showing = chordMode
+      ? `chord-${chord?.name ?? 'none'}`
+      : `${chromatic ? 'chromatic' : tuning.id}-${reading ? `${reading.target.note}${Math.round(reading.cents)}c` : 'none'}`;
+    setSettingsOpen(false);
+    // Let the settings sheet close before the share sheet opens over it.
+    setTimeout(() => {
+      shareClip(clip, showing).catch((error: Error) => Alert.alert('Could not share the clip', error.message));
+    }, 400);
+  };
 
   const tags = [
     ...(settings.a4 !== DEFAULT_A4
@@ -190,6 +209,7 @@ export function TunerScreen() {
         transposeApplies={!freeform}
         fingering={settings.fingering}
         onFingeringChange={(value) => updateSettings({ fingering: value })}
+        onShareClip={shareRecentAudio}
       />
     </SafeAreaView>
   );

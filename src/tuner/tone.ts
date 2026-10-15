@@ -1,3 +1,5 @@
+import { encodeWav } from '../audio/wav';
+
 export const TONE_DURATION_S = 2.5;
 /** Time between strings in a strum. */
 export const STRUM_GAP_S = 0.35;
@@ -14,7 +16,7 @@ const RELEASE_S = 0.08;
 export function synthesizeToneWav(frequency: number): Uint8Array {
   const samples = new Float32Array(Math.floor(SAMPLE_RATE * TONE_DURATION_S));
   addPluck(samples, frequency, 0);
-  return encodeWav(finish(samples));
+  return encodeWav(finish(samples), SAMPLE_RATE);
 }
 
 /** Synthesizes the notes plucked one after another, each left ringing. */
@@ -22,7 +24,7 @@ export function synthesizeStrumWav(frequencies: number[]): Uint8Array {
   const gap = Math.floor(SAMPLE_RATE * STRUM_GAP_S);
   const samples = new Float32Array(gap * (frequencies.length - 1) + Math.floor(SAMPLE_RATE * TONE_DURATION_S));
   frequencies.forEach((frequency, i) => addPluck(samples, frequency, i * gap));
-  return encodeWav(finish(samples));
+  return encodeWav(finish(samples), SAMPLE_RATE);
 }
 
 export function strumDurationS(stringCount: number): number {
@@ -68,32 +70,4 @@ function finish(samples: Float32Array): Float32Array {
   const gain = peak > 0 ? 0.8 / peak : 0;
   for (let i = 0; i < samples.length; i++) samples[i] *= gain;
   return samples;
-}
-
-function encodeWav(samples: Float32Array): Uint8Array {
-  const dataSize = samples.length * 2;
-  const bytes = new Uint8Array(44 + dataSize);
-  const view = new DataView(bytes.buffer);
-  const writeAscii = (offset: number, text: string) => {
-    for (let i = 0; i < text.length; i++) bytes[offset + i] = text.charCodeAt(i);
-  };
-
-  writeAscii(0, 'RIFF');
-  view.setUint32(4, 36 + dataSize, true);
-  writeAscii(8, 'WAVE');
-  writeAscii(12, 'fmt ');
-  view.setUint32(16, 16, true);
-  view.setUint16(20, 1, true); // PCM
-  view.setUint16(22, 1, true); // mono
-  view.setUint32(24, SAMPLE_RATE, true);
-  view.setUint32(28, SAMPLE_RATE * 2, true);
-  view.setUint16(32, 2, true);
-  view.setUint16(34, 16, true);
-  writeAscii(36, 'data');
-  view.setUint32(40, dataSize, true);
-
-  for (let i = 0; i < samples.length; i++) {
-    view.setInt16(44 + i * 2, Math.max(-1, Math.min(1, samples[i])) * 0x7fff, true);
-  }
-  return bytes;
 }

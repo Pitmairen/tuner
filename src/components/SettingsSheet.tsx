@@ -22,6 +22,8 @@ type Props = {
   transposeApplies: boolean;
   fingering: FretInstrumentId | 'off';
   onFingeringChange: (fingering: FretInstrumentId | 'off') => void;
+  /** Shares the last few seconds of microphone audio. */
+  onShareClip: () => void;
 };
 
 export function SettingsSheet({
@@ -36,6 +38,7 @@ export function SettingsSheet({
   transposeApplies,
   fingering,
   onFingeringChange,
+  onShareClip,
 }: Props) {
   return (
     <BottomSheet visible={visible} onClose={onClose}>
@@ -56,6 +59,23 @@ export function SettingsSheet({
             value={fingering}
             onChange={onFingeringChange}
           />
+        </View>
+
+        <Text style={styles.section}>Help improve detection</Text>
+        <View style={styles.row}>
+          <View style={styles.label}>
+            <Text style={styles.name}>Share last 10 seconds</Text>
+            <Text style={styles.description}>
+              If the tuner got something wrong, send the audio along with what you played.
+            </Text>
+          </View>
+          <Pressable
+            onPress={onShareClip}
+            accessibilityLabel="Share the last 10 seconds of audio"
+            style={({ pressed }) => [styles.share, pressed && styles.pressed]}
+          >
+            <Text style={styles.shareText}>Share</Text>
+          </Pressable>
         </View>
       </ScrollView>
     </BottomSheet>
@@ -241,6 +261,26 @@ const styles = StyleSheet.create({
   list: {
     paddingHorizontal: 12,
     gap: 8,
+  },
+  section: {
+    color: colors.muted,
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    paddingHorizontal: 12,
+    marginTop: 12,
+  },
+  share: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: colors.surfaceRaised,
+  },
+  shareText: {
+    color: colors.text,
+    fontSize: 14,
+    fontWeight: '700',
   },
   row: {
     flexDirection: 'row',

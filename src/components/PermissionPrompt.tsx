@@ -8,7 +8,8 @@ export function PermissionPrompt({ onRetry }: { onRetry: () => void }) {
     <View style={styles.permission}>
       <Text style={styles.title}>Microphone access needed</Text>
       <Text style={styles.body}>
-        The tuner listens to your instrument through the microphone. Nothing is recorded or stored.
+        The tuner listens to your instrument through the microphone. Audio stays on your phone and is never
+        saved unless you choose to share a clip.
       </Text>
       <Pressable style={styles.button} onPress={() => Linking.openSettings()}>
         <Text style={styles.buttonText}>Open Settings</Text>

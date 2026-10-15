@@ -61,7 +61,7 @@ export function useTuner({
     () => (chromatic ? WIDE_DETECTION : detectionFor(instrument(tuning.instrument).detection, strings)),
     [chromatic, tuning.instrument, strings],
   );
-  const { frequency, chords, clearChordHistory, permission, retry } = usePitch(muted, detection, steadiness, chordMode ? { a4, ignoreBass } : null);
+  const { frequency, chords, clearChordHistory, recentAudio, permission, retry } = usePitch(muted, detection, steadiness, chordMode ? { a4, ignoreBass } : null);
   // Keyed by tuning (including its notes, since custom tunings can be edited)
   // so switching or editing starts with nothing checked off.
   const tuningKey = `${tuning.id}:${tuning.notes.join(',')}@${a4}${transpose >= 0 ? '+' : ''}${transpose}`;
@@ -130,6 +130,7 @@ export function useTuner({
     chord: chords.current,
     chordHistory: chords.history,
     clearChordHistory,
+    recentAudio,
     strings,
     tunedStrings,
     celebration: tuned.celebration,

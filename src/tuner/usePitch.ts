@@ -8,6 +8,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 
+import { ClipRecorder } from '../audio/clipRecorder';
 import { DetectOptions } from '../chords/detectChord';
 import { FollowerState, SongFollower } from '../chords/songFollower';
 import { detectPitch } from './pitch';
@@ -20,6 +21,8 @@ export type PermissionState = 'unknown' | 'granted' | 'denied';
 const RING_SIZE = WIDE_DETECTION.windowSize;
 const ANALYSIS_INTERVAL_MS = 60;
 const NO_CHORDS: FollowerState = { current: null, history: [] };
+/** Seconds of recent audio kept in memory for sharing a clip. */
+const CLIP_SECONDS = 10;
 /** How long to keep showing the last pitch after the string goes quiet. */
 const HOLD_MS = 1200;
 const MIN_CLARITY = 0.85;
@@ -47,6 +50,7 @@ export function usePitch(
   const [smoother] = useState(() => new PitchSmoother(steadiness));
   const mutedRef = useRef(muted);
   const detectionRef = useRef(detection);
+  const [clips] = useState(() => new ClipRecorder(CLIP_SECONDS));
   const chordOptionsRef = useRef(chordOptions);
   /** Created on the first buffer, when the real sample rate is known. */
   const follower = useRef<SongFollower | null>(null);
@@ -99,10 +103,11 @@ export function usePitch(
     if (mutedRef.current) return;
     const samples = new Float32Array(buffer.data);
     const step = Math.max(1, buffer.channels);
+    const mono = step === 1 ? samples : samples.filter((_, i) => i % step === 0);
+    clips.push(mono, buffer.sampleRate);
 
     const options = chordOptionsRef.current;
     if (options != null) {
-      const mono = step === 1 ? samples : samples.filter((_, i) => i % step === 0);
       if (follower.current?.sampleRate !== buffer.sampleRate) {
         follower.current = new SongFollower(buffer.sampleRate, options);
       }
@@ -111,11 +116,11 @@ export function usePitch(
       return;
     }
 
-    for (let i = 0; i < samples.length; i += step) {
-      ring.current[writeIndex.current] = samples[i];
+    for (let i = 0; i < mono.length; i++) {
+      ring.current[writeIndex.current] = mono[i];
       writeIndex.current = (writeIndex.current + 1) % RING_SIZE;
     }
-    filled.current = Math.min(RING_SIZE, filled.current + samples.length / step);
+    filled.current = Math.min(RING_SIZE, filled.current + mono.length);
     const now = Date.now();
 
     const { windowSize, minFrequency, maxFrequency, decimation } = detectionRef.current;
@@ -131,7 +136,10 @@ export function usePitch(
       smoother.reset();
       setFrequency(null);
     }
-  }, [smoother, publishChords]);
+  }, [smoother, publishChords, clips]);
+
+  /** The last few seconds the microphone heard, for sharing. */
+  const recentAudio = useCallback(() => clips.snapshot(), [clips]);
 
   const { stream } = useAudioStream({ sampleRate: 48000, channels: 1, encoding: 'float32', onBuffer });
 
@@ -185,6 +193,7 @@ export function usePitch(
     frequency: muted || chordMode ? null : frequency,
     chords: muted || !chordMode ? NO_CHORDS : chords,
     clearChordHistory,
+    recentAudio,
     permission,
     retry: start,
   };
