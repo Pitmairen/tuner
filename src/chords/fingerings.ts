@@ -59,7 +59,25 @@ export function findFingerings(chord: Chord, tuning = STANDARD_TUNING, limit = 3
     visit(0);
   }
 
-  return [...found.values()].sort((a, b) => a.score - b.score).slice(0, limit);
+  const ranked = [...found.values()].sort((a, b) => a.score - b.score);
+  // Drop truncated copies of fuller, better-ranked shapes (320xxx is just
+  // 320003 with the top strings left out). An awkward extension like 502220
+  // doesn't knock out the natural x02220, since it ranks lower.
+  const complete = ranked.filter((shape, i) => !ranked.slice(0, i).some((better) => extends_(better, shape)));
+  return complete.slice(0, limit);
+}
+
+/** True if `fuller` plays everything `shape` plays, on the same frets, and more. */
+function extends_(fuller: Fingering, shape: Fingering): boolean {
+  let extra = false;
+  for (let s = 0; s < shape.frets.length; s++) {
+    if (shape.frets[s] == null) {
+      if (fuller.frets[s] != null) extra = true;
+    } else if (fuller.frets[s] !== shape.frets[s]) {
+      return false;
+    }
+  }
+  return extra;
 }
 
 function evaluate(
@@ -142,16 +160,22 @@ function evaluate(
  * Puts the fingering that best matches the exact notes heard first (e.g. a
  * barre C at the 3rd fret rather than the open C), keeping the rest in order.
  */
+/** How much more of the heard notes a shape must explain to jump the queue. */
+const CLEARLY_BETTER = 0.15;
+
 export function rankByHeard(fingerings: Fingering[], heard: number[], tuning = STANDARD_TUNING): Fingering[] {
   if (fingerings.length === 0 || heard.length === 0) return fingerings;
   const heardSet = new Set(heard);
-  // Unique notes, so doubled strings don't count twice.
-  const match = (f: Fingering) => {
+  // Only what a shape *explains* counts. Shape notes that weren't heard are
+  // normal (the detector folds octave doublings like open D's D3+D4 into one
+  // note, and quiet strings get missed), so they mustn't count against it.
+  const coverage = (f: Fingering) => {
     const notes = new Set(f.frets.flatMap((fret, s) => (fret == null ? [] : [tuning[s] + fret])));
-    const hits = [...notes].filter((n) => heardSet.has(n)).length;
-    return hits / notes.size + hits / heardSet.size;
+    return [...heardSet].filter((n) => notes.has(n)).length / heardSet.size;
   };
-  const scored = fingerings.map((f, i) => ({ f, i, m: match(f) }));
-  const best = scored.reduce((a, b) => (b.m > a.m + 0.05 ? b : a));
+  const scored = fingerings.map((f, i) => ({ f, i, coverage: coverage(f) }));
+  // Keep the natural order unless another shape clearly matches better,
+  // e.g. a barre C at the 3rd fret rather than the open C.
+  const best = scored.reduce((a, b) => (b.coverage > a.coverage + CLEARLY_BETTER ? b : a));
   return [best.f, ...fingerings.filter((_, i) => i !== best.i)];
 }

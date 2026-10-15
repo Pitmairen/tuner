@@ -1,5 +1,7 @@
 import { ChordQuality, PITCH_NAMES, TEMPLATES } from '../chords';
+import { detectChord } from '../detectChord';
 import { findFingerings, rankByHeard, STANDARD_TUNING } from '../fingerings';
+import { SAMPLE_RATE, strum } from '../testing/synth';
 
 const pc = (name: string) => PITCH_NAMES.indexOf(name);
 const shape = (frets: (number | null)[]) => frets.map((f) => f ?? 'x').join('');
@@ -72,12 +74,76 @@ describe('findFingerings', () => {
   });
 });
 
+describe('truncated shapes', () => {
+  it.each([
+    ['D', 'maj', 'xx02x2'],
+    ['G', 'maj', '320xxx'],
+    ['C', 'maj', 'x3201x'],
+  ] as [string, ChordQuality, string][])('does not offer a cut-down %s %s (%s)', (root, quality, truncated) => {
+    expect(shapes(root, quality)).not.toContain(truncated);
+  });
+});
+
 describe('rankByHeard', () => {
+  // The detector folds octave doublings into one note (open D's D3 and D4
+  // read as just D3) and can miss quiet strings, so the heard notes are
+  // usually a subset of what's played.
+  it.each([
+    ['D', [50, 57, 66], 'xx0232'], // D3 A3 F#4; D4 folded into D3
+    ['G', [43, 47, 50, 59], '320003'], // G2 B2 D3 B3; G3 and G4 folded into G2
+    ['C', [48, 52, 55, 64], 'x32010'], // C3 E3 G3 E4; C4 folded into C3
+    ['A', [45, 52, 61], 'x02220'], // A2 E3 C#4; A3 and E4 missed
+  ] as [string, number[], string][])(
+    'keeps the natural %s shape when doubled or quiet notes were missed',
+    (root, heard, expected) => {
+      const options = findFingerings({ root: pc(root), quality: 'maj', bass: pc(root) }, STANDARD_TUNING, 12);
+      expect(shape(rankByHeard(options, heard)[0].frets)).toBe(expected);
+    },
+  );
+
   it('prefers the shape whose exact notes were heard', () => {
     const options = findFingerings({ root: pc('C'), quality: 'maj', bass: pc('C') }, STANDARD_TUNING, 20);
     // A barre C on the 3rd fret, A-shape: x35553 → C3 G3 C4 E4 G4.
     const heard = [48, 55, 60, 64, 67];
     const ranked = rankByHeard(options, heard);
     expect(shape(ranked[0].frets)).toBe('x35553');
+  });
+});
+
+describe('detector → fingering, end to end', () => {
+  // Strum each open chord, run the real detector, and check the diagram
+  // offers the shape that was actually played.
+  const OPEN_CHORDS: [string, string][] = [
+    ['x32010', 'C'],
+    ['x02220', 'A'],
+    ['320003', 'G'],
+    ['022100', 'E'],
+    ['xx0232', 'D'],
+    ['x02210', 'Am'],
+    ['022000', 'Em'],
+    ['xx0231', 'Dm'],
+    ['x02020', 'A7'],
+    ['020100', 'E7'],
+    ['x02010', 'Am7'],
+    ['133211', 'F'],
+  ];
+
+  it.each(OPEN_CHORDS)('shows %s for a strummed %s', (played, name) => {
+    const notes = played
+      .split('')
+      .flatMap((c, s) => (c === 'x' ? [] : [STANDARD_TUNING[s] + Number(c)]));
+    for (const [seed, options] of [
+      [1, {}],
+      [2, { snrDb: 18 }],
+      [3, { startMs: 400, detuneCents: 8 }],
+    ] as const) {
+      const result = detectChord(strum(notes, { seed, ...options }), SAMPLE_RATE);
+      expect(result?.name).toBe(name);
+      const shown = rankByHeard(
+        findFingerings(result!.chord, STANDARD_TUNING, 12),
+        result!.notes.map((n) => n.midi),
+      )[0];
+      expect({ seed, shape: shape(shown.frets) }).toEqual({ seed, shape: played });
+    }
   });
 });
