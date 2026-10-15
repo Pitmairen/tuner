@@ -1,6 +1,6 @@
 import * as Haptics from 'expo-haptics';
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { colors } from '../theme';
 import { midiToFrequency, noteName, parseNote } from '../tuner/notes';
@@ -37,6 +37,14 @@ export function TuningEditor({ initial, isNew, onSave, onDelete, onCancel, onPla
     if (next < MIN_MIDI || next > MAX_MIDI) return;
     Haptics.selectionAsync();
     setMidis(midis.map((m, i) => (i === index ? next : m)));
+  };
+
+  const confirmDelete = () => {
+    if (!onDelete) return;
+    Alert.alert(`Delete “${initial.name}”?`, 'This custom tuning will be removed. This can’t be undone.', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: onDelete },
+    ]);
   };
 
   const save = () => {
@@ -98,7 +106,7 @@ export function TuningEditor({ initial, isNew, onSave, onDelete, onCancel, onPla
         })}
 
         {onDelete && (
-          <Pressable onPress={onDelete} style={({ pressed }) => [styles.delete, pressed && { opacity: 0.6 }]}>
+          <Pressable onPress={confirmDelete} style={({ pressed }) => [styles.delete, pressed && { opacity: 0.6 }]}>
             <Text style={styles.deleteText}>Delete tuning</Text>
           </Pressable>
         )}
