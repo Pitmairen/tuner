@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Tuner",
-    "slug": "guitartuner",
+    "slug": "tuner",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -20,9 +20,7 @@
       "package": "net.myr1.tuner",
       "permissions": [
         "android.permission.RECORD_AUDIO",
-        "android.permission.MODIFY_AUDIO_SETTINGS",
-        "android.permission.FOREGROUND_SERVICE",
-        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"
+        "android.permission.MODIFY_AUDIO_SETTINGS"
       ]
     },
     "web": {
@@ -32,7 +30,8 @@
       [
         "expo-audio",
         {
-          "microphonePermission": "Tuner listens to your instrument through the microphone to detect its pitch."
+          "microphonePermission": "Tuner listens to your instrument through the microphone to detect its pitch.",
+          "enableBackgroundPlayback": false
         }
       ],
       "expo-asset",
@@ -48,11 +47,6 @@
       "expo-sharing"
     ],
     "backgroundColor": "#0B0D12",
-    "extra": {
-      "eas": {
-        "projectId": "ec8153dc-21ec-4f25-98c1-9d389041ee94"
-      }
-    },
     "owner": "pitmairen"
   }
 }
