@@ -59,6 +59,24 @@ export function detectChord(
   sampleRate: number,
   { a4 = 440, ignoreBass = false }: DetectOptions = {},
 ): ChordResult | null {
+  const notes = detectNotes(signal, sampleRate, a4);
+  if (!notes) return null;
+  const pitchClasses = new Array(12).fill(0);
+  for (const { midi, weight } of notes) pitchClasses[midi % 12] = Math.max(pitchClasses[midi % 12], weight);
+  const match = matchChord(pitchClasses, notes[0].midi % 12, ignoreBass);
+  return match && { ...match, notes, pitchClasses };
+}
+
+/**
+ * The notes sounding in a buffer, lowest first; null for silence or no clear
+ * notes. `minFrequency` excludes notes too low to measure in a short buffer.
+ */
+export function detectNotes(
+  signal: Float32Array,
+  sampleRate: number,
+  a4 = 440,
+  minFrequency = 0,
+): DetectedNote[] | null {
   let sumSquares = 0;
   for (let i = 0; i < signal.length; i++) sumSquares += signal[i] * signal[i];
   if (Math.sqrt(sumSquares / signal.length) < SILENCE_RMS) return null;
@@ -69,25 +87,29 @@ export function detectChord(
   const size = 1 << Math.floor(Math.log2(decimated.length));
   const peaks = findPeaks(magnitudeSpectrum(decimated.subarray(decimated.length - size)), rate, size);
   if (peaks.length === 0) return null;
+  const lowestNote = Math.max(MIN_NOTE, Math.ceil(69 + 12 * Math.log2(Math.max(minFrequency, 1) / a4)));
+  const notes = findNotes(peaks, a4, lowestNote);
+  return notes.length > 0 ? notes : null;
+}
 
-  const notes = findNotes(peaks, a4);
-  // A single note (in any octaves) isn't a chord.
-  if (new Set(notes.map((n) => n.midi % 12)).size < 2) return null;
-
-  const pitchClasses = new Array(12).fill(0);
-  for (const { midi, weight } of notes) pitchClasses[midi % 12] = Math.max(pitchClasses[midi % 12], weight);
-  const lowest = notes[0].midi % 12;
-
-  const ranked = rankChords(pitchClasses, ignoreBass ? null : lowest);
-  const [best, second] = ranked;
+/**
+ * The chord best matching pitch-class strengths (0 = C, each 0–1), with the
+ * lowest note's pitch class breaking ties unless `ignoreBass`. Null for fewer
+ * than two pitch classes: a single note isn't a chord.
+ */
+export function matchChord(
+  pitchClasses: number[],
+  lowest: number,
+  ignoreBass = false,
+): Pick<ChordResult, 'chord' | 'name' | 'confidence'> | null {
+  if (pitchClasses.filter((w) => w > 0).length < 2) return null;
+  const [best, second] = rankChords(pitchClasses, ignoreBass ? null : lowest);
   if (best.score <= 0) return null;
   const chord = { root: best.root, quality: best.quality, bass: ignoreBass ? best.root : lowest };
   return {
     chord,
     name: chordName(chord),
     confidence: Math.max(0, Math.min(1, (best.score - second.score) / best.score)),
-    notes,
-    pitchClasses,
   };
 }
 
@@ -135,7 +157,7 @@ function findPeaks(mags: Float64Array, rate: number, size: number): Peak[] {
 }
 
 /** Iteratively picks the notes whose harmonic series explain the peaks. */
-function findNotes(peaks: Peak[], a4: number): DetectedNote[] {
+function findNotes(peaks: Peak[], a4: number, lowestNote = MIN_NOTE): DetectedNote[] {
   const amps = peaks.map((p) => p.amplitude);
   const logFreqs = peaks.map((p) => Math.log2(p.frequency));
   const found: { midi: number; salience: number }[] = [];
@@ -144,7 +166,7 @@ function findNotes(peaks: Peak[], a4: number): DetectedNote[] {
 
   for (let round = 0; round < MAX_NOTES; round++) {
     let best = { midi: -1, salience: 0, matches: [] as { peak: number; harmonic: number }[] };
-    for (let midi = MIN_NOTE; midi <= MAX_NOTE; midi++) {
+    for (let midi = lowestNote; midi <= MAX_NOTE; midi++) {
       if (found.some((n) => n.midi === midi)) continue;
       const candidate = salience(midi, a4, logFreqs, amps);
       if (candidate.salience > best.salience) best = { midi, ...candidate };
@@ -189,13 +211,29 @@ function salience(midi: number, a4: number, logFreqs: number[], amps: number[]) 
     // Real strings' overtones run slightly sharp, so allow more room higher up.
     const tolerance = (h <= 4 ? 35 : 55) / 1200;
     const target = logF0 + Math.log2(h);
+    // Peaks are in frequency order: binary-search the target, then look
+    // outwards only as far as the tolerance allows.
+    let lo = 0;
+    let hi = logFreqs.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (logFreqs[mid] < target) lo = mid + 1;
+      else hi = mid;
+    }
     let bestPeak = -1;
     let bestDistance = tolerance;
-    for (let i = 0; i < logFreqs.length; i++) {
-      const distance = Math.abs(logFreqs[i] - target);
-      if (distance < bestDistance && amps[i] > 0) {
-        bestDistance = distance;
+    for (let i = lo; i < logFreqs.length && logFreqs[i] - target < bestDistance; i++) {
+      if (amps[i] > 0) {
+        bestDistance = logFreqs[i] - target;
         bestPeak = i;
+        break;
+      }
+    }
+    for (let i = lo - 1; i >= 0 && target - logFreqs[i] < bestDistance; i--) {
+      if (amps[i] > 0) {
+        bestDistance = target - logFreqs[i];
+        bestPeak = i;
+        break;
       }
     }
     if (bestPeak < 0) continue;
