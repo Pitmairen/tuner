@@ -1,20 +1,271 @@
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import { Linking, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+
+import { Gauge } from './src/components/Gauge';
+import { MicOffIcon } from './src/components/icons';
+import { StringSelector } from './src/components/StringSelector';
+import { TuningSheet } from './src/components/TuningSheet';
+import { centsColor, colors } from './src/theme';
+import { pitchClass } from './src/tuner/notes';
+import { TUNINGS } from './src/tuner/tunings';
+import { useReferenceTone } from './src/tuner/useReferenceTone';
+import { IN_TUNE_CENTS, useTuner } from './src/tuner/useTuner';
 
 export default function App() {
   return (
-    <View style={styles.container}>
-      <Text>Open up App.tsx to start working on your app!</Text>
-      <StatusBar style="auto" />
-    </View>
+    <SafeAreaProvider>
+      <StatusBar style="light" />
+      <TunerScreen />
+    </SafeAreaProvider>
   );
 }
 
+function TunerScreen() {
+  const { width } = useWindowDimensions();
+  const [tuning, setTuning] = useState(TUNINGS[0]);
+  const [lockedString, setLockedString] = useState<number | null>(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [toneMode, setToneMode] = useState(false);
+  const tone = useReferenceTone();
+  // Stop listening while a reference note plays so the tuner doesn't hear itself.
+  const paused = tone.playing != null;
+  const { reading, strings, tunedStrings, permission, retry } = useTuner(tuning, lockedString, paused);
+
+  const cents = reading?.cents ?? null;
+  const playingString = strings.find((s) => s.note === tone.playing);
+  const target = reading
+    ? strings[reading.stringIndex]
+    : (playingString ?? (lockedString != null ? strings[lockedString] : null));
+  const accent = centsColor(cents);
+
+  return (
+    <SafeAreaView style={styles.screen}>
+      <View style={styles.header}>
+        <Text style={styles.brand}>tuner</Text>
+        <Pressable onPress={() => setSheetOpen(true)} style={({ pressed }) => [styles.tuningChip, pressed && { opacity: 0.7 }]}>
+          <Text style={styles.tuningName}>{tuning.name}</Text>
+          <Text style={styles.tuningNotes}>{tuning.notes.map(pitchClass).join(' ')}</Text>
+          <Text style={styles.chevron}>▾</Text>
+        </Pressable>
+      </View>
+
+      {permission === 'denied' ? (
+        <View style={styles.permission}>
+          <Text style={styles.permissionTitle}>Microphone access needed</Text>
+          <Text style={styles.permissionBody}>The tuner listens to your guitar through the microphone. Nothing is recorded or stored.</Text>
+          <Pressable style={styles.permissionButton} onPress={() => Linking.openSettings()}>
+            <Text style={styles.permissionButtonText}>Open Settings</Text>
+          </Pressable>
+          <Pressable onPress={retry}>
+            <Text style={styles.permissionRetry}>Try again</Text>
+          </Pressable>
+        </View>
+      ) : (
+        <View style={styles.main}>
+          <Gauge cents={cents} size={Math.min(width - 40, 380)} paused={paused} />
+
+          <View style={styles.readout}>
+            <View style={styles.noteRow}>
+              <Text style={[styles.note, { color: reading ? colors.text : paused ? colors.muted : colors.faint }]}>
+                {target ? pitchClass(target.note) : '–'}
+              </Text>
+              {target && <Text style={styles.octave}>{target.note.match(/\d+$/)?.[0]}</Text>}
+            </View>
+            <Text style={styles.detail}>
+              {paused && target
+                ? `Reference · ${target.frequency.toFixed(1)} Hz`
+                : reading
+                ? `${reading.cents > 0 ? '+' : ''}${reading.cents.toFixed(0)} cents · ${reading.frequency.toFixed(1)} Hz`
+                : target
+                  ? `${target.frequency.toFixed(1)} Hz`
+                  : ' '}
+            </Text>
+            {paused ? (
+              <View style={[styles.status, styles.statusPaused]}>
+                <MicOffIcon color={colors.muted} size={15} />
+                <Text style={[styles.statusText, { color: colors.muted }]}>Tuner paused</Text>
+              </View>
+            ) : (
+              <View style={[styles.status, { borderColor: accent, backgroundColor: reading ? `${accent}1A` : 'transparent' }]}>
+                <Text style={[styles.statusText, { color: reading ? accent : colors.muted }]}>{statusLabel(cents)}</Text>
+              </View>
+            )}
+          </View>
+        </View>
+      )}
+
+      <View style={styles.footer}>
+        <StringSelector
+          strings={strings}
+          activeString={reading?.stringIndex ?? null}
+          lockedString={lockedString}
+          tunedStrings={tunedStrings}
+          onLockChange={setLockedString}
+          toneMode={toneMode}
+          onToneModeChange={setToneMode}
+          playingNote={tone.playing}
+          onPlay={tone.play}
+          onStrum={() => tone.strum(strings)}
+          strumming={tone.strumming}
+        />
+      </View>
+
+      <TuningSheet
+        visible={sheetOpen}
+        selected={tuning}
+        onClose={() => setSheetOpen(false)}
+        onSelect={(next) => {
+          setTuning(next);
+          setLockedString(null);
+          setSheetOpen(false);
+        }}
+      />
+    </SafeAreaView>
+  );
+}
+
+function statusLabel(cents: number | null): string {
+  if (cents == null) return 'Play a string';
+  if (Math.abs(cents) <= IN_TUNE_CENTS) return 'In tune';
+  return cents < 0 ? 'Tune up  ↑' : 'Tune down  ↓';
+}
+
 const styles = StyleSheet.create({
-  container: {
+  screen: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: colors.background,
+  },
+  header: {
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    gap: 16,
+  },
+  brand: {
+    color: colors.text,
+    fontSize: 28,
+    fontWeight: '800',
+    letterSpacing: -0.5,
+  },
+  tuningChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  tuningName: {
+    color: colors.text,
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  tuningNotes: {
+    color: colors.muted,
+    fontSize: 13,
+    fontWeight: '600',
+    letterSpacing: 1,
+  },
+  chevron: {
+    color: colors.muted,
+    fontSize: 12,
+  },
+  main: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 8,
+  },
+  readout: {
+    alignItems: 'center',
+    gap: 10,
+  },
+  noteRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+  },
+  note: {
+    fontSize: 104,
+    lineHeight: 112,
+    fontWeight: '800',
+    letterSpacing: -3,
+  },
+  octave: {
+    color: colors.muted,
+    fontSize: 28,
+    fontWeight: '700',
+    marginBottom: 18,
+    marginLeft: 4,
+  },
+  detail: {
+    color: colors.muted,
+    fontSize: 15,
+    fontWeight: '500',
+    fontVariant: ['tabular-nums'],
+  },
+  status: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 6,
+    paddingHorizontal: 18,
+    paddingVertical: 8,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  statusPaused: {
+    borderColor: colors.border,
+    borderStyle: 'dashed',
+    backgroundColor: colors.surface,
+  },
+  statusText: {
+    fontSize: 15,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  footer: {
+    paddingBottom: 24,
+  },
+  permission: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 32,
+    gap: 14,
+  },
+  permissionTitle: {
+    color: colors.text,
+    fontSize: 22,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  permissionBody: {
+    color: colors.muted,
+    fontSize: 15,
+    lineHeight: 22,
+    textAlign: 'center',
+  },
+  permissionButton: {
+    marginTop: 8,
+    backgroundColor: colors.inTune,
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    borderRadius: 999,
+  },
+  permissionButtonText: {
+    color: colors.background,
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  permissionRetry: {
+    color: colors.muted,
+    fontSize: 14,
+    fontWeight: '600',
+    padding: 8,
   },
 });
