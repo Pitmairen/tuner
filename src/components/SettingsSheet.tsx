@@ -1,6 +1,6 @@
 import * as Haptics from 'expo-haptics';
 import { ReactNode } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 
 import { colors } from '../theme';
 import { DEFAULT_A4, MAX_A4, MIN_A4 } from '../tuner/notes';
@@ -19,6 +19,8 @@ type Props = {
   onTransposeChange: (transpose: number) => void;
   /** False in chromatic and chord modes, which have no strings to shift. */
   transposeApplies: boolean;
+  showFingering: boolean;
+  onShowFingeringChange: (show: boolean) => void;
 };
 
 export function SettingsSheet({
@@ -31,6 +33,8 @@ export function SettingsSheet({
   transpose,
   onTransposeChange,
   transposeApplies,
+  showFingering,
+  onShowFingeringChange,
 }: Props) {
   return (
     <BottomSheet visible={visible} onClose={onClose}>
@@ -39,6 +43,23 @@ export function SettingsSheet({
         <Transpose value={transpose} onChange={onTransposeChange} applies={transposeApplies} />
         <ReferencePitch a4={a4} onChange={onA4Change} />
         <NeedleSetting value={steadiness} onChange={onSteadinessChange} />
+        <View style={styles.row}>
+          <View style={styles.label}>
+            <Text style={styles.name}>Show fingering</Text>
+            <Text style={styles.description}>Chord mode: a guitar chord diagram for the chord heard</Text>
+          </View>
+          <Switch
+            value={showFingering}
+            onValueChange={(value) => {
+              Haptics.selectionAsync();
+              onShowFingeringChange(value);
+            }}
+            trackColor={{ false: colors.surfaceRaised, true: colors.inTune }}
+            thumbColor={colors.text}
+            ios_backgroundColor={colors.surfaceRaised}
+            accessibilityLabel="Show fingering in chord mode"
+          />
+        </View>
       </ScrollView>
     </BottomSheet>
   );

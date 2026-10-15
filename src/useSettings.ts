@@ -16,9 +16,11 @@ export type Settings = {
   steadiness: Steadiness;
   /** Semitones every string target is shifted (capo / transpose). */
   transpose: number;
+  /** Chord mode: show a guitar chord diagram for the chord heard. */
+  showFingering: boolean;
 };
 
-const DEFAULTS: Settings = { tuningId: TUNINGS[0].id, a4: DEFAULT_A4, steadiness: DEFAULT_STEADINESS, transpose: 0 };
+const DEFAULTS: Settings = { tuningId: TUNINGS[0].id, a4: DEFAULT_A4, steadiness: DEFAULT_STEADINESS, transpose: 0, showFingering: false };
 
 function load(): Settings {
   const stored = readJson(FILE_NAME) as Partial<Record<keyof Settings, unknown>> | null;
@@ -34,6 +36,7 @@ function load(): Settings {
       transpose <= MAX_TRANSPOSE
         ? transpose
         : DEFAULTS.transpose,
+    showFingering: typeof stored?.showFingering === 'boolean' ? stored.showFingering : DEFAULTS.showFingering,
   };
 }
 

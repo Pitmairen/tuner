@@ -3,17 +3,21 @@ import { StyleSheet, Text, View } from 'react-native';
 import { chordName, PITCH_NAMES } from '../chords/chords';
 import { ChordResult, CLEAR_MATCH } from '../chords/detectChord';
 import { colors } from '../theme';
+import { FingeringPanel } from './FingeringPanel';
 
 type Props = {
   result: ChordResult | null;
+  showFingering: boolean;
 };
 
 /** Takes the gauge's place in chord mode: the chord name and the notes heard. */
-export function ChordReadout({ result }: Props) {
+export function ChordReadout({ result, showFingering }: Props) {
+  // The diagram needs room, so the name shrinks when it's on.
+  const nameStyle = [styles.name, showFingering && styles.nameCompact];
   if (!result) {
     return (
       <View style={styles.container}>
-        <Text style={[styles.name, styles.empty]}>–</Text>
+        <Text style={[nameStyle, styles.empty]}>–</Text>
         <Text style={styles.notes}> </Text>
         <View style={styles.status}>
           <Text style={[styles.statusText, { color: colors.muted }]}>Strum a chord</Text>
@@ -32,7 +36,7 @@ export function ChordReadout({ result }: Props) {
   return (
     <View style={styles.container} accessibilityLiveRegion="polite" accessibilityLabel={`Chord ${result.name}`}>
       <View style={styles.nameRow}>
-        <Text style={styles.name} adjustsFontSizeToFit numberOfLines={1}>
+        <Text style={nameStyle} adjustsFontSizeToFit numberOfLines={1}>
           {main}
         </Text>
         {chord.bass !== chord.root && <Text style={styles.bass}>/{PITCH_NAMES[chord.bass]}</Text>}
@@ -41,6 +45,15 @@ export function ChordReadout({ result }: Props) {
       <View style={[styles.status, { borderColor: accent, backgroundColor: `${accent}1A` }]}>
         <Text style={[styles.statusText, { color: accent }]}>{confident ? 'Clear match' : 'Unsure'}</Text>
       </View>
+      {showFingering && (
+        <FingeringPanel
+          // Re-mounted per chord, so shapes are chosen once rather than shuffling as it rings.
+          key={result.name}
+          chord={chord}
+          heard={notes.map((n) => n.midi)}
+          color={accent}
+        />
+      )}
     </View>
   );
 }
@@ -61,6 +74,10 @@ const styles = StyleSheet.create({
     lineHeight: 124,
     fontWeight: '800',
     letterSpacing: -3,
+  },
+  nameCompact: {
+    fontSize: 80,
+    lineHeight: 90,
   },
   empty: {
     color: colors.faint,

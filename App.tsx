@@ -132,7 +132,7 @@ function TunerScreen() {
         </View>
       ) : chordMode ? (
         <View style={styles.main}>
-          <ChordReadout result={chord} />
+          <ChordReadout result={chord} showFingering={settings.showFingering} />
         </View>
       ) : (
         <View style={styles.main}>
@@ -235,6 +235,8 @@ function TunerScreen() {
         transpose={settings.transpose}
         onTransposeChange={(transpose) => updateSettings({ transpose })}
         transposeApplies={!freeform}
+        showFingering={settings.showFingering}
+        onShowFingeringChange={(showFingering) => updateSettings({ showFingering })}
       />
     </SafeAreaView>
   );
