@@ -135,7 +135,7 @@ heard notes and costs ≤ 5 more than the first.
 
 - Google Play: prepared in the repo: storage/overlay permissions blocked
   (`android.blockedPermissions`), privacy policy `docs/privacy-policy.html`
-  (fill in name/email, then host it, e.g. GitHub Pages from `docs/`), listing
+  (developer Pitmairen, progrper@gmail.com; host it, e.g. GitHub Pages from `docs/`), listing
   text and Play Console answers in `store/listing.md`, Play icon + feature
   graphic in `store/` (from `generate-icons.mjs … assets store`), and an
   `eas.json` submit profile (internal track, draft). Still to do by the user:
