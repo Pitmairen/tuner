@@ -10,7 +10,7 @@ export type HistoryEntry = {
 };
 
 export type FollowerState = {
-  current: (Pick<ChordResult, 'chord' | 'name' | 'confidence'> & { pitchClasses: number[] }) | null;
+  current: ChordResult | null;
   history: HistoryEntry[];
 };
 
@@ -91,7 +91,7 @@ const MIN_ENTRY_S = 0.4;
  *   in a row to agree. Blips shorter than 0.4 s are dropped from the history.
  */
 export class SongFollower {
-  private readonly sampleRate: number;
+  readonly sampleRate: number;
   private readonly options: Options;
   private readonly buffer: Float32Array;
   /** Total samples received. */
@@ -131,6 +131,12 @@ export class SongFollower {
       if (++this.sinceHop === HOP) this.endHop();
       if (this.time >= this.nextAnalysis) this.analyse();
     }
+  }
+
+  /** Forgets the history but keeps following the current chord. */
+  clearHistory() {
+    const { current } = this.state;
+    this.state.history = current ? [{ name: current.name, chord: current.chord, start: this.time }] : [];
   }
 
   reset() {
@@ -259,8 +265,10 @@ export class SongFollower {
     const match = matchChord(profile, bass % 12, this.options.ignoreBass);
     if (!match) return;
 
+    // The notes behind this analysis, for the readout and chord diagrams.
+    const heardNotes = heard.filter((n) => notes.has(n.midi));
     if (match.name === this.state.current?.name) {
-      this.state.current = { ...match, pitchClasses: profile };
+      this.state.current = { ...match, notes: heardNotes, pitchClasses: profile };
       this.candidate = null;
       return;
     }
@@ -276,7 +284,7 @@ export class SongFollower {
         ? this.time - this.candidate.since >= POWER_CHORD_HOLD_S
       : (isStrum && match.confidence >= INSTANT_CONFIDENCE) || this.candidate.count >= 2;
     if (ready) {
-      this.switchTo({ ...match, pitchClasses: profile });
+      this.switchTo({ ...match, notes: heardNotes, pitchClasses: profile });
     }
   }
 

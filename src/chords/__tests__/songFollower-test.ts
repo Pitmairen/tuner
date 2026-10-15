@@ -151,3 +151,43 @@ describe('SongFollower on synthesized songs', () => {
     expect({ song: s.label, history: s.historyErrors <= target.historyErrors }).toEqual({ song: s.label, history: true });
   });
 });
+
+describe('SongFollower basics', () => {
+  /** Feeds audio in microphone-sized chunks; returns [time, shown chord] after each. */
+  const play = (follower: SongFollower, audio: Float32Array) => {
+    const shown: [number, string | null][] = [];
+    for (let i = 0; i < audio.length; i += 1024) {
+      follower.push(audio.subarray(i, i + 1024));
+      shown.push([follower.time, follower.state.current?.name ?? null]);
+    }
+    return shown;
+  };
+
+  it('shows a single strum quickly, holds it, and clears after silence', () => {
+    // One open C strum ringing for 2 s, then 2.5 s of silence.
+    const { audio: strummed } = synthesizeSong({
+      progression: [{ shape: 'x32010', name: 'C' }],
+      bpm: 30, // one strum per 2 s chord
+      beatsPerChord: 1,
+      repeats: 1,
+      style: 'quarters',
+      seed: 9,
+    });
+    const audio = new Float32Array(SAMPLE_RATE * 4.5);
+    audio.set(strummed.subarray(0, SAMPLE_RATE * 2));
+    const shown = play(new SongFollower(SAMPLE_RATE), audio);
+    const first = shown.find(([, name]) => name === 'C');
+    expect(first?.[0]).toBeLessThan(0.35);
+    expect(shown.filter(([t]) => t > 0.4 && t < 2).every(([, name]) => name === 'C')).toBe(true);
+    expect(shown[shown.length - 1][1]).toBeNull();
+  });
+
+  it('clearHistory keeps only the chord still sounding', () => {
+    const { audio } = synthesizeSong({ progression: POP, bpm: 100, beatsPerChord: 4, repeats: 1, style: 'eighths', seed: 10 });
+    const follower = new SongFollower(SAMPLE_RATE);
+    play(follower, audio.subarray(0, SAMPLE_RATE * 6));
+    expect(follower.state.history.length).toBeGreaterThan(1);
+    follower.clearHistory();
+    expect(follower.state.history.map((h) => h.name)).toEqual([follower.state.current?.name]);
+  });
+});

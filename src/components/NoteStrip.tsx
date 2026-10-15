@@ -5,23 +5,20 @@ import { colors } from '../theme';
 const PITCH_CLASSES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 
 type Props = {
-  /** Pitch classes to light, e.g. ["C", "E", "G"]. */
+  /** Pitch classes to light, e.g. ["C"]. */
   active: string[];
-  /** One of `active` drawn fully lit (a chord's root); the rest are softer. */
-  root?: string | null;
   color: string;
   caption: string;
 };
 
-/** The twelve notes of the octave with the ones heard lit. Used in chromatic and chord modes. */
-export function NoteStrip({ active, root, color, caption }: Props) {
+/** The twelve notes of the octave with the ones heard lit. Used in chromatic mode. */
+export function NoteStrip({ active, color, caption }: Props) {
   return (
     <View style={styles.container}>
       <Text style={styles.caption}>{caption}</Text>
       <View style={styles.row}>
         {PITCH_CLASSES.map((pitch) => {
           const isActive = active.includes(pitch);
-          const isSoft = isActive && root != null && pitch !== root;
           const sharp = pitch.length > 1;
           return (
             <View
@@ -30,7 +27,6 @@ export function NoteStrip({ active, root, color, caption }: Props) {
                 styles.cell,
                 sharp && styles.cellSharp,
                 isActive && { backgroundColor: color, borderColor: color },
-                isSoft && styles.cellSoft,
               ]}
             >
               <Text
@@ -80,9 +76,6 @@ const styles = StyleSheet.create({
   },
   cellSharp: {
     backgroundColor: colors.background,
-  },
-  cellSoft: {
-    opacity: 0.6,
   },
   text: {
     color: colors.text,

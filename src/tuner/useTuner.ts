@@ -61,7 +61,7 @@ export function useTuner({
     () => (chromatic ? WIDE_DETECTION : detectionFor(instrument(tuning.instrument).detection, strings)),
     [chromatic, tuning.instrument, strings],
   );
-  const { frequency, chord, permission, retry } = usePitch(muted, detection, steadiness, chordMode ? { a4, ignoreBass } : null);
+  const { frequency, chords, clearChordHistory, permission, retry } = usePitch(muted, detection, steadiness, chordMode ? { a4, ignoreBass } : null);
   // Keyed by tuning (including its notes, since custom tunings can be edited)
   // so switching or editing starts with nothing checked off.
   const tuningKey = `${tuning.id}:${tuning.notes.join(',')}@${a4}${transpose >= 0 ? '+' : ''}${transpose}`;
@@ -125,7 +125,17 @@ export function useTuner({
     setTuned({ tuningKey, strings: next, celebration });
   }, [reading, tunedStrings, tuningKey, strings.length, tuned]);
 
-  return { reading, chord, strings, tunedStrings, celebration: tuned.celebration, permission, retry };
+  return {
+    reading,
+    chord: chords.current,
+    chordHistory: chords.history,
+    clearChordHistory,
+    strings,
+    tunedStrings,
+    celebration: tuned.celebration,
+    permission,
+    retry,
+  };
 }
 
 function nearestString(strings: { frequency: number }[], frequency: number): number {

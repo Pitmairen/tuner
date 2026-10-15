@@ -4,16 +4,18 @@ import { useEffect, useState } from 'react';
 import { Linking, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
-import { PITCH_NAMES } from './src/chords/chords';
-import { CLEAR_MATCH } from './src/chords/detectChord';
 import { FRET_INSTRUMENTS } from './src/chords/fingerings';
+import { HistoryEntry } from './src/chords/songFollower';
+import { BottomSheet } from './src/components/BottomSheet';
+import { ChordHistory } from './src/components/ChordHistory';
 import { ChordReadout } from './src/components/ChordReadout';
+import { FingeringPanel } from './src/components/FingeringPanel';
 import { Gauge } from './src/components/Gauge';
 import { MicOffIcon, SlidersIcon } from './src/components/icons';
 import { NoteStrip } from './src/components/NoteStrip';
-import { TunedBanner } from './src/components/TunedBanner';
 import { SettingsSheet } from './src/components/SettingsSheet';
 import { StringSelector } from './src/components/StringSelector';
+import { TunedBanner } from './src/components/TunedBanner';
 import { TuningSheet } from './src/components/TuningSheet';
 import { centsColor, colors } from './src/theme';
 import { noteHint } from './src/tuner/hint';
@@ -54,7 +56,18 @@ function TunerScreen() {
   const tone = useReferenceTone();
   // Stop listening while a reference note plays so the tuner doesn't hear itself.
   const paused = tone.playing != null;
-  const { reading, chord, strings, tunedStrings, celebration, permission, retry } = useTuner({
+  const [shownChord, setShownChord] = useState<HistoryEntry | null>(null);
+  const {
+    reading,
+    chord,
+    chordHistory,
+    clearChordHistory,
+    strings,
+    tunedStrings,
+    celebration,
+    permission,
+    retry,
+  } = useTuner({
     tuning,
     chromatic,
     chordMode,
@@ -181,11 +194,11 @@ function TunerScreen() {
 
       <View style={styles.footer}>
         {chordMode ? (
-          <NoteStrip
-            active={chord ? chord.notes.map((n) => PITCH_NAMES[n.midi % 12]) : []}
-            root={chord ? PITCH_NAMES[chord.chord.root] : null}
-            color={chord && chord.confidence >= CLEAR_MATCH ? colors.inTune : colors.close}
-            caption="Chord · notes heard"
+          <ChordHistory
+            history={chordHistory}
+            live={chord != null && chordHistory[chordHistory.length - 1]?.name === chord.name}
+            onClear={clearChordHistory}
+            onSelect={fingering ? setShownChord : undefined}
           />
         ) : chromatic ? (
           <NoteStrip
@@ -229,6 +242,22 @@ function TunerScreen() {
         }}
       />
 
+      {/* A chord from the history, with its diagram. */}
+      <BottomSheet visible={shownChord != null} onClose={() => setShownChord(null)}>
+        {shownChord && fingering && (
+          <View style={styles.shownChord}>
+            <Text style={styles.shownChordName}>{shownChord.name}</Text>
+            <FingeringPanel
+              key={`${fingering.id}:${shownChord.name}`}
+              chord={shownChord.chord}
+              heard={[]}
+              instrument={fingering}
+              color={colors.inTune}
+            />
+          </View>
+        )}
+      </BottomSheet>
+
       <SettingsSheet
         visible={settingsOpen}
         onClose={() => setSettingsOpen(false)}
@@ -261,6 +290,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 8,
     gap: 16,
+  },
+  shownChord: {
+    alignItems: 'center',
+    gap: 8,
+    paddingBottom: 8,
+  },
+  shownChordName: {
+    color: colors.text,
+    fontSize: 44,
+    fontWeight: '800',
   },
   brandRow: {
     flexDirection: 'row',

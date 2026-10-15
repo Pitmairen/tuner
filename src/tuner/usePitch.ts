@@ -8,29 +8,26 @@ import {
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 
-import { ChordResult, detectChord, DetectOptions } from '../chords/detectChord';
-import { ChordStabilizer } from '../chords/stabilizer';
+import { DetectOptions } from '../chords/detectChord';
+import { FollowerState, SongFollower } from '../chords/songFollower';
 import { detectPitch } from './pitch';
 import { PitchSmoother, Steadiness } from './steadiness';
 import { Detection, WIDE_DETECTION } from './tunings';
 
 export type PermissionState = 'unknown' | 'granted' | 'denied';
 
-/** ~0.34 s at 48 kHz: the window the chord detector is designed for. */
-const CHORD_WINDOW = 16384;
 /** Holds the longest analysis window; shorter ones read its most recent samples. */
-const RING_SIZE = Math.max(WIDE_DETECTION.windowSize, CHORD_WINDOW);
+const RING_SIZE = WIDE_DETECTION.windowSize;
 const ANALYSIS_INTERVAL_MS = 60;
-/** Chords change slowly and cost more to analyse. */
-const CHORD_INTERVAL_MS = 250;
+const NO_CHORDS: FollowerState = { current: null, history: [] };
 /** How long to keep showing the last pitch after the string goes quiet. */
 const HOLD_MS = 1200;
 const MIN_CLARITY = 0.85;
 
 /**
  * Streams the microphone and reports a smoothed fundamental frequency, or
- * null when nothing is being played. With `chordOptions` set it recognises
- * chords instead. While `muted`, input is ignored.
+ * null when nothing is being played. With `chordOptions` set it follows the
+ * chords being played instead, with a history. While `muted`, input is ignored.
  */
 export function usePitch(
   muted: boolean,
@@ -40,7 +37,7 @@ export function usePitch(
 ) {
   const [permission, setPermission] = useState<PermissionState>('unknown');
   const [frequency, setFrequency] = useState<number | null>(null);
-  const [chord, setChord] = useState<ChordResult | null>(null);
+  const [chords, setChords] = useState<FollowerState>(NO_CHORDS);
 
   const ring = useRef(new Float32Array(RING_SIZE));
   const writeIndex = useRef(0);
@@ -50,17 +47,35 @@ export function usePitch(
   const [smoother] = useState(() => new PitchSmoother(steadiness));
   const mutedRef = useRef(muted);
   const detectionRef = useRef(detection);
-  const [stabilizer] = useState(() => new ChordStabilizer());
   const chordOptionsRef = useRef(chordOptions);
+  /** Created on the first buffer, when the real sample rate is known. */
+  const follower = useRef<SongFollower | null>(null);
+  /** What was last published, so unchanged analyses don't re-render. */
+  const publishedKey = useRef('');
   // Compared by value: callers build a fresh object each render.
   const chordKey = chordOptions ? `${chordOptions.a4}:${chordOptions.ignoreBass}` : null;
 
   useEffect(() => {
     chordOptionsRef.current = chordOptions;
-    stabilizer.reset();
+    // New settings (or leaving chord mode) start a fresh follower.
+    follower.current = null;
     smoother.reset();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- chordKey stands in for chordOptions
-  }, [chordKey, stabilizer, smoother]);
+  }, [chordKey, smoother]);
+
+  const publishChords = useCallback((state: FollowerState) => {
+    const { current, history } = state;
+    const key = `${current?.name}|${current?.confidence.toFixed(1)}|${history.length}|${history[history.length - 1]?.name}`;
+    if (key === publishedKey.current) return;
+    publishedKey.current = key;
+    setChords({ current, history: [...history] });
+  }, []);
+
+  const clearChordHistory = useCallback(() => {
+    if (!follower.current) return;
+    follower.current.clearHistory();
+    publishChords(follower.current.state);
+  }, [publishChords]);
 
   useEffect(() => {
     // Readings from the previous instrument's settings shouldn't be smoothed
@@ -84,21 +99,24 @@ export function usePitch(
     if (mutedRef.current) return;
     const samples = new Float32Array(buffer.data);
     const step = Math.max(1, buffer.channels);
+
+    const options = chordOptionsRef.current;
+    if (options != null) {
+      const mono = step === 1 ? samples : samples.filter((_, i) => i % step === 0);
+      if (follower.current?.sampleRate !== buffer.sampleRate) {
+        follower.current = new SongFollower(buffer.sampleRate, options);
+      }
+      follower.current.push(mono);
+      publishChords(follower.current.state);
+      return;
+    }
+
     for (let i = 0; i < samples.length; i += step) {
       ring.current[writeIndex.current] = samples[i];
       writeIndex.current = (writeIndex.current + 1) % RING_SIZE;
     }
     filled.current = Math.min(RING_SIZE, filled.current + samples.length / step);
-
     const now = Date.now();
-    const options = chordOptionsRef.current;
-    if (options != null) {
-      if (filled.current < CHORD_WINDOW || now - lastAnalysis.current < CHORD_INTERVAL_MS) return;
-      lastAnalysis.current = now;
-      const window = latest(ring.current, writeIndex.current, CHORD_WINDOW);
-      setChord(stabilizer.push(detectChord(window, buffer.sampleRate, options), now));
-      return;
-    }
 
     const { windowSize, minFrequency, maxFrequency, decimation } = detectionRef.current;
     if (filled.current < windowSize || now - lastAnalysis.current < ANALYSIS_INTERVAL_MS) return;
@@ -113,7 +131,7 @@ export function usePitch(
       smoother.reset();
       setFrequency(null);
     }
-  }, [smoother, stabilizer]);
+  }, [smoother, publishChords]);
 
   const { stream } = useAudioStream({ sampleRate: 48000, channels: 1, encoding: 'float32', onBuffer });
 
@@ -165,7 +183,8 @@ export function usePitch(
   const chordMode = chordOptions != null;
   return {
     frequency: muted || chordMode ? null : frequency,
-    chord: muted || !chordMode ? null : chord,
+    chords: muted || !chordMode ? NO_CHORDS : chords,
+    clearChordHistory,
     permission,
     retry: start,
   };
