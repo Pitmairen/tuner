@@ -3,6 +3,7 @@ import { Animated, StyleSheet, Text, View } from 'react-native';
 import Svg, { Line, Path } from 'react-native-svg';
 
 import { centsColor, colors } from '../theme';
+import { NEEDLE_SPRING, Steadiness } from '../tuner/steadiness';
 import { IN_TUNE_CENTS } from '../tuner/useTuner';
 import { SpeakerIcon } from './icons';
 
@@ -14,10 +15,11 @@ type Props = {
   size: number;
   /** Detection is off (a reference note is playing): dim the dial and hide the needle. */
   paused?: boolean;
+  steadiness: Steadiness;
 };
 
 /** Semicircular needle gauge spanning ±50 cents. */
-export function Gauge({ cents, size, paused = false }: Props) {
+export function Gauge({ cents, size, paused = false, steadiness }: Props) {
   const radius = size / 2 - 12;
   const cx = size / 2;
   const cy = radius + 12;
@@ -30,11 +32,9 @@ export function Gauge({ cents, size, paused = false }: Props) {
     Animated.spring(angle, {
       toValue: (clamped / RANGE_CENTS) * SWEEP_DEG,
       useNativeDriver: true,
-      stiffness: 180,
-      damping: 20,
-      mass: 0.6,
+      ...NEEDLE_SPRING[steadiness],
     }).start();
-  }, [angle, cents]);
+  }, [angle, cents, steadiness]);
 
   const [dim] = useState(() => new Animated.Value(paused ? 1 : 0));
   useEffect(() => {

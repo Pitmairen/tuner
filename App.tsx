@@ -47,6 +47,7 @@ function TunerScreen() {
     lockedString: chromatic ? null : lockedString,
     a4: settings.a4,
     muted: paused,
+    steadiness: settings.steadiness,
   });
 
   const cents = reading?.cents ?? null;
@@ -88,7 +89,7 @@ function TunerScreen() {
         </View>
       ) : (
         <View style={styles.main}>
-          <Gauge cents={cents} size={Math.min(width - 40, 380)} paused={paused} />
+          <Gauge cents={cents} size={Math.min(width - 40, 380)} paused={paused} steadiness={settings.steadiness} />
 
           <View style={styles.readout}>
             <View style={styles.noteRow}>
@@ -149,6 +150,8 @@ function TunerScreen() {
         onInstrumentTabChange={setSheetInstrument}
         a4={settings.a4}
         onA4Change={(a4) => updateSettings({ a4 })}
+        steadiness={settings.steadiness}
+        onSteadinessChange={(steadiness) => updateSettings({ steadiness })}
         customTunings={custom.tunings}
         onSaveCustom={custom.save}
         onDeleteCustom={custom.remove}

@@ -9,6 +9,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 
 import { detectPitch } from './pitch';
+import { PitchSmoother, Steadiness } from './steadiness';
 import { Detection, WIDE_DETECTION } from './tunings';
 
 export type PermissionState = 'unknown' | 'granted' | 'denied';
@@ -16,7 +17,6 @@ export type PermissionState = 'unknown' | 'granted' | 'denied';
 /** Holds the longest analysis window; shorter ones read its most recent samples. */
 const RING_SIZE = WIDE_DETECTION.windowSize;
 const ANALYSIS_INTERVAL_MS = 60;
-const HISTORY_SIZE = 5;
 /** How long to keep showing the last pitch after the string goes quiet. */
 const HOLD_MS = 1200;
 const MIN_CLARITY = 0.85;
@@ -25,7 +25,7 @@ const MIN_CLARITY = 0.85;
  * Streams the microphone and reports a smoothed fundamental frequency,
  * or null when nothing is being played. While `muted`, input is ignored.
  */
-export function usePitch(muted: boolean, detection: Detection) {
+export function usePitch(muted: boolean, detection: Detection, steadiness: Steadiness) {
   const [permission, setPermission] = useState<PermissionState>('unknown');
   const [frequency, setFrequency] = useState<number | null>(null);
 
@@ -34,7 +34,7 @@ export function usePitch(muted: boolean, detection: Detection) {
   const filled = useRef(0);
   const lastAnalysis = useRef(0);
   const lastHeard = useRef(0);
-  const history = useRef<number[]>([]);
+  const [smoother] = useState(() => new PitchSmoother(steadiness));
   const mutedRef = useRef(muted);
   const detectionRef = useRef(detection);
 
@@ -42,17 +42,19 @@ export function usePitch(muted: boolean, detection: Detection) {
     // Readings from the previous instrument's settings shouldn't be smoothed
     // together with the new ones.
     detectionRef.current = detection;
-    history.current = [];
-  }, [detection]);
+    smoother.reset();
+  }, [detection, smoother]);
+
+  useEffect(() => smoother.setSteadiness(steadiness), [smoother, steadiness]);
 
   useEffect(() => {
     mutedRef.current = muted;
     if (muted) {
-      history.current = [];
+      smoother.reset();
       filled.current = 0;
       lastHeard.current = 0;
     }
-  }, [muted]);
+  }, [muted, smoother]);
 
   const onBuffer = useCallback((buffer: AudioStreamBuffer) => {
     if (mutedRef.current) return;
@@ -73,13 +75,12 @@ export function usePitch(muted: boolean, detection: Detection) {
     const result = detectPitch(window, buffer.sampleRate, { minFrequency, decimation });
     if (result && result.clarity >= MIN_CLARITY) {
       lastHeard.current = now;
-      history.current = [...history.current.slice(-(HISTORY_SIZE - 1)), result.frequency];
-      setFrequency(median(history.current));
+      setFrequency(smoother.push(result.frequency));
     } else if (now - lastHeard.current > HOLD_MS) {
-      history.current = [];
+      smoother.reset();
       setFrequency(null);
     }
-  }, []);
+  }, [smoother]);
 
   const { stream } = useAudioStream({ sampleRate: 48000, channels: 1, encoding: 'float32', onBuffer });
 
@@ -116,7 +117,7 @@ export function usePitch(muted: boolean, detection: Detection) {
         start();
       } else if (stream.isStreaming) {
         stream.stop();
-        history.current = [];
+        smoother.reset();
         filled.current = 0;
         setFrequency(null);
       }
@@ -126,7 +127,7 @@ export function usePitch(muted: boolean, detection: Detection) {
       streamUsable.current = false;
       subscription.remove();
     };
-  }, [start, stream]);
+  }, [start, stream, smoother]);
 
   return { frequency: muted ? null : frequency, permission, retry: start };
 }
@@ -143,10 +144,4 @@ function latest(ring: Float32Array, writeIndex: number, length: number): Float32
     out.set(ring.subarray(0, length - head), head);
   }
   return out;
-}
-
-function median(values: number[]): number {
-  const sorted = [...values].sort((a, b) => a - b);
-  const mid = Math.floor(sorted.length / 2);
-  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
 }

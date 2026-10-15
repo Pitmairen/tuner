@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react';
 
 import { readJson, writeJson } from './storage';
 import { DEFAULT_A4, MAX_A4, MIN_A4 } from './tuner/notes';
+import { DEFAULT_STEADINESS, Steadiness, STEADINESS_OPTIONS } from './tuner/steadiness';
 import { TUNINGS } from './tuner/tunings';
 
 const FILE_NAME = 'settings.json';
@@ -11,9 +12,11 @@ export type Settings = {
   tuningId: string;
   /** Reference pitch in Hz. */
   a4: number;
+  /** How much the needle is smoothed. */
+  steadiness: Steadiness;
 };
 
-const DEFAULTS: Settings = { tuningId: TUNINGS[0].id, a4: DEFAULT_A4 };
+const DEFAULTS: Settings = { tuningId: TUNINGS[0].id, a4: DEFAULT_A4, steadiness: DEFAULT_STEADINESS };
 
 function load(): Settings {
   const stored = readJson(FILE_NAME) as Partial<Record<keyof Settings, unknown>> | null;
@@ -21,6 +24,7 @@ function load(): Settings {
   return {
     tuningId: typeof stored?.tuningId === 'string' ? stored.tuningId : DEFAULTS.tuningId,
     a4: typeof a4 === 'number' && Number.isInteger(a4) && a4 >= MIN_A4 && a4 <= MAX_A4 ? a4 : DEFAULTS.a4,
+    steadiness: STEADINESS_OPTIONS.find((o) => o.id === stored?.steadiness)?.id ?? DEFAULTS.steadiness,
   };
 }
 

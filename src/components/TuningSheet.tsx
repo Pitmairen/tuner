@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { colors } from '../theme';
 import { DEFAULT_A4, MAX_A4, MIN_A4, pitchClass } from '../tuner/notes';
+import { Steadiness, STEADINESS_OPTIONS } from '../tuner/steadiness';
 import { CHROMATIC_ID, InstrumentId, INSTRUMENTS, Tuning, TuningString, TUNINGS } from '../tuner/tunings';
 import { TuningEditor } from './TuningEditor';
 
@@ -17,6 +18,8 @@ type Props = {
   onInstrumentTabChange: (id: InstrumentId) => void;
   a4: number;
   onA4Change: (a4: number) => void;
+  steadiness: Steadiness;
+  onSteadinessChange: (steadiness: Steadiness) => void;
   customTunings: Tuning[];
   onSelect: (id: string) => void;
   onSaveCustom: (tuning: Tuning) => void;
@@ -32,6 +35,8 @@ export function TuningSheet({
   onInstrumentTabChange,
   a4,
   onA4Change,
+  steadiness,
+  onSteadinessChange,
   customTunings,
   onSelect,
   onSaveCustom,
@@ -114,6 +119,7 @@ export function TuningSheet({
               <Text style={styles.title}>Choose tuning</Text>
               <ScrollView contentContainerStyle={styles.list}>
                 <ReferencePitch a4={a4} onChange={onA4Change} />
+                <NeedleSetting value={steadiness} onChange={onSteadinessChange} />
                 <Pressable
                   onPress={() => onSelect(CHROMATIC_ID)}
                   style={({ pressed }) => [
@@ -179,6 +185,41 @@ function InstrumentTabs({ selected, onChange }: { selected: InstrumentId; onChan
   );
 }
 
+/** How much the needle is smoothed: responsiveness versus calm. */
+function NeedleSetting({ value, onChange }: { value: Steadiness; onChange: (value: Steadiness) => void }) {
+  const current = STEADINESS_OPTIONS.find((o) => o.id === value) ?? STEADINESS_OPTIONS[1];
+  return (
+    <View style={styles.reference}>
+      <View style={styles.itemText}>
+        <Text style={styles.itemName}>Needle</Text>
+        <Text style={styles.itemNotes} numberOfLines={2}>
+          {current.description}
+        </Text>
+      </View>
+      <View style={styles.segments} accessibilityRole="radiogroup">
+        {STEADINESS_OPTIONS.map(({ id, label }) => {
+          const active = id === value;
+          return (
+            <Pressable
+              key={id}
+              onPress={() => {
+                if (active) return;
+                Haptics.selectionAsync();
+                onChange(id);
+              }}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: active }}
+              style={[styles.segment, active && styles.tabActive]}
+            >
+              <Text style={[styles.segmentText, active && styles.tabTextActive]}>{label}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
 /** A4 calibration: the pitch every other note is derived from. */
 function ReferencePitch({ a4, onChange }: { a4: number; onChange: (a4: number) => void }) {
   const step = (delta: number) => {
@@ -239,6 +280,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 10,
     borderRadius: 10,
+  },
+  segments: {
+    flexDirection: 'row',
+    padding: 3,
+    borderRadius: 12,
+    backgroundColor: colors.surface,
+  },
+  segment: {
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 9,
+  },
+  segmentText: {
+    color: colors.muted,
+    fontSize: 13,
+    fontWeight: '600',
   },
   tabActive: {
     backgroundColor: colors.surfaceRaised,

@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { centsBetween, frequencyToMidi, midiToFrequency, noteName } from './notes';
 import { instrument, Tuning, TuningString, tuningStrings, WIDE_DETECTION } from './tunings';
+import { Steadiness } from './steadiness';
 import { usePitch } from './usePitch';
 
 export const IN_TUNE_CENTS = 5;
@@ -31,13 +32,14 @@ type Options = {
   a4: number;
   /** While true, nothing is detected. */
   muted: boolean;
+  steadiness: Steadiness;
 };
 
 /** Combines live pitch with the selected tuning (or chromatic mode). */
-export function useTuner({ tuning, chromatic, lockedString, a4, muted }: Options) {
+export function useTuner({ tuning, chromatic, lockedString, a4, muted, steadiness }: Options) {
   // Chromatic mode can't know the instrument, so it listens across the widest range.
   const detection = chromatic ? WIDE_DETECTION : instrument(tuning.instrument).detection;
-  const { frequency, permission, retry } = usePitch(muted, detection);
+  const { frequency, permission, retry } = usePitch(muted, detection, steadiness);
   const strings = useMemo(() => tuningStrings(tuning, a4), [tuning, a4]);
   // Keyed by tuning (including its notes, since custom tunings can be edited)
   // so switching or editing starts with nothing checked off.
