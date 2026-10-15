@@ -9,6 +9,7 @@ import { NoteStrip } from './src/components/NoteStrip';
 import { StringSelector } from './src/components/StringSelector';
 import { TuningSheet } from './src/components/TuningSheet';
 import { centsColor, colors } from './src/theme';
+import { noteHint } from './src/tuner/hint';
 import { DEFAULT_A4, pitchClass } from './src/tuner/notes';
 import { CHROMATIC_ID, instrument, InstrumentId, transposeLabel, TUNINGS } from './src/tuner/tunings';
 import { useCustomTunings } from './src/tuner/useCustomTunings';
@@ -57,6 +58,8 @@ function TunerScreen() {
     ? reading.target
     : (playingString ?? (lockedString != null ? strings[lockedString] : null));
   const accent = centsColor(cents);
+  // Chromatic mode already shows the played note, so it needs no hint.
+  const hint = reading && !chromatic && !paused ? noteHint(reading.cents, reading.playing, reading.target.note) : null;
 
   return (
     <SafeAreaView style={styles.screen}>
@@ -111,6 +114,10 @@ function TunerScreen() {
                   ? `${target.frequency.toFixed(1)} Hz`
                   : ' '}
             </Text>
+            {/* Always rendered so the status pill doesn't move when a hint appears. */}
+            <Text style={[styles.hint, hint?.kind === 'octave' && styles.hintOctave]} numberOfLines={1}>
+              {hint?.text ?? ' '}
+            </Text>
             {paused ? (
               <View style={[styles.status, styles.statusPaused]}>
                 <MicOffIcon color={colors.muted} size={15} />
@@ -119,7 +126,7 @@ function TunerScreen() {
             ) : (
               <View style={[styles.status, { borderColor: accent, backgroundColor: reading ? `${accent}1A` : 'transparent' }]}>
                 <Text style={[styles.statusText, { color: reading ? accent : colors.muted }]}>
-                  {statusLabel(cents, chromatic)}
+                  {hint?.kind === 'octave' ? 'Wrong octave' : statusLabel(cents, chromatic)}
                 </Text>
               </View>
             )}
@@ -260,6 +267,15 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginBottom: 18,
     marginLeft: 4,
+  },
+  hint: {
+    color: colors.muted,
+    fontSize: 14,
+    fontWeight: '600',
+    marginTop: -4,
+  },
+  hintOctave: {
+    color: colors.close,
   },
   detail: {
     color: colors.muted,

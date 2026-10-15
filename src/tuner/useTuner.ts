@@ -17,6 +17,8 @@ export type TunerReading = {
   frequency: number;
   /** The note being tuned to: a string of the tuning, or in chromatic mode the nearest note. */
   target: TuningString;
+  /** The nearest note to what is actually being played, e.g. "E3". */
+  playing: string;
   /** Index into the tuning's strings of the target, or null in chromatic mode. */
   stringIndex: number | null;
   /** Offset from the target. Positive means sharp. */
@@ -55,15 +57,16 @@ export function useTuner({ tuning, chromatic, lockedString, a4, transpose, muted
 
   const reading = useMemo<TunerReading | null>(() => {
     if (frequency == null) return null;
+    const midi = Math.round(frequencyToMidi(frequency, a4));
+    const { name, octave } = noteName(midi);
+    const playing = `${name}${octave}`;
     if (chromatic) {
-      const midi = Math.round(frequencyToMidi(frequency, a4));
-      const { name, octave } = noteName(midi);
-      const target = { note: `${name}${octave}`, midi, frequency: midiToFrequency(midi, a4) };
-      return { frequency, target, stringIndex: null, cents: centsBetween(frequency, target.frequency) };
+      const target = { note: playing, midi, frequency: midiToFrequency(midi, a4) };
+      return { frequency, target, playing, stringIndex: null, cents: centsBetween(frequency, target.frequency) };
     }
     const stringIndex = lockedString ?? nearestString(strings, frequency);
     const target = strings[stringIndex];
-    return { frequency, target, stringIndex, cents: centsBetween(frequency, target.frequency) };
+    return { frequency, target, playing, stringIndex, cents: centsBetween(frequency, target.frequency) };
   }, [frequency, chromatic, lockedString, strings, a4]);
 
   useEffect(() => {
