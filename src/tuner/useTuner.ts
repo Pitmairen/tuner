@@ -51,7 +51,9 @@ export function useTuner({ tuning, chromatic, lockedString, a4, transpose, muted
   // Keyed by tuning (including its notes, since custom tunings can be edited)
   // so switching or editing starts with nothing checked off.
   const tuningKey = `${tuning.id}:${tuning.notes.join(',')}@${a4}${transpose >= 0 ? '+' : ''}${transpose}`;
-  const [tuned, setTuned] = useState({ tuningKey, strings: new Set<number>() });
+  // `celebration` increments each time every string becomes tuned (the UI
+  // animates on change). It survives tuning switches, unlike the strings.
+  const [tuned, setTuned] = useState({ tuningKey, strings: new Set<number>(), celebration: 0 });
   const tunedStrings = tuned.tuningKey === tuningKey ? tuned.strings : NO_STRINGS;
   const pending = useRef<{ stringIndex: number; tuned: boolean; since: number } | null>(null);
 
@@ -93,16 +95,23 @@ export function useTuner({ tuning, chromatic, lockedString, a4, transpose, muted
 
     pending.current = null;
     const next = new Set(tunedStrings);
+    let { celebration } = tuned;
     if (shouldBeTuned) {
       next.add(stringIndex);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      if (next.size === strings.length) {
+        celebration++;
+        // Two extra pulses after the usual success, so "all done" feels distinct.
+        setTimeout(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy), 180);
+        setTimeout(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium), 320);
+      }
     } else {
       next.delete(stringIndex);
     }
-    setTuned({ tuningKey, strings: next });
-  }, [reading, tunedStrings, tuningKey]);
+    setTuned({ tuningKey, strings: next, celebration });
+  }, [reading, tunedStrings, tuningKey, strings.length, tuned]);
 
-  return { reading, strings, tunedStrings, permission, retry };
+  return { reading, strings, tunedStrings, celebration: tuned.celebration, permission, retry };
 }
 
 function nearestString(strings: { frequency: number }[], frequency: number): number {

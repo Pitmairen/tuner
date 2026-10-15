@@ -6,6 +6,7 @@ import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { Gauge } from './src/components/Gauge';
 import { MicOffIcon } from './src/components/icons';
 import { NoteStrip } from './src/components/NoteStrip';
+import { TunedBanner } from './src/components/TunedBanner';
 import { StringSelector } from './src/components/StringSelector';
 import { TuningSheet } from './src/components/TuningSheet';
 import { centsColor, colors } from './src/theme';
@@ -42,7 +43,7 @@ function TunerScreen() {
   const tone = useReferenceTone();
   // Stop listening while a reference note plays so the tuner doesn't hear itself.
   const paused = tone.playing != null;
-  const { reading, strings, tunedStrings, permission, retry } = useTuner({
+  const { reading, strings, tunedStrings, celebration, permission, retry } = useTuner({
     tuning,
     chromatic,
     lockedString: chromatic ? null : lockedString,
@@ -96,6 +97,7 @@ function TunerScreen() {
         </View>
       ) : (
         <View style={styles.main}>
+          <TunedBanner trigger={celebration} stringCount={strings.length} />
           <Gauge cents={cents} size={Math.min(width - 40, 380)} paused={paused} steadiness={settings.steadiness} />
 
           <View style={styles.readout}>
@@ -150,6 +152,7 @@ function TunerScreen() {
             onPlay={tone.play}
             onStrum={() => tone.strum(strings)}
             strumming={tone.strumming}
+            celebration={celebration}
           />
         )}
       </View>

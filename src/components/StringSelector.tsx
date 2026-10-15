@@ -20,7 +20,12 @@ type Props = {
   onPlay: (string: TuningString) => void;
   onStrum: () => void;
   strumming: boolean;
+  /** Changes each time every string becomes tuned; the buttons do a wave. */
+  celebration: number;
 };
+
+/** Custom tunings have at most six strings. */
+const MAX_STRINGS = 6;
 
 export function StringSelector({
   strings,
@@ -34,8 +39,23 @@ export function StringSelector({
   onPlay,
   onStrum,
   strumming,
+  celebration,
 }: Props) {
   const [strumOpacity] = useState(() => new Animated.Value(toneMode ? 1 : 0));
+  const [waves] = useState(() => Array.from({ length: MAX_STRINGS }, () => new Animated.Value(1)));
+
+  useEffect(() => {
+    if (celebration === 0) return;
+    Animated.stagger(
+      70,
+      waves.map((scale) =>
+        Animated.sequence([
+          Animated.spring(scale, { toValue: 1.14, useNativeDriver: true, stiffness: 400, damping: 12 }),
+          Animated.spring(scale, { toValue: 1, useNativeDriver: true, stiffness: 220, damping: 14 }),
+        ]),
+      ),
+    ).start();
+  }, [celebration, waves]);
   useEffect(() => {
     Animated.timing(strumOpacity, { toValue: toneMode ? 1 : 0, duration: 180, useNativeDriver: true }).start();
   }, [strumOpacity, toneMode]);
@@ -80,32 +100,33 @@ export function StringSelector({
           const tuned = tunedStrings.has(index);
           const playing = string.note === playingNote;
           return (
-            <Pressable
-              key={index}
-              onPress={() => (toneMode ? onPlay(string) : select(locked ? null : index))}
-              accessibilityLabel={`${toneMode ? 'Play' : 'String'} ${strings.length - index}, ${string.note}`}
-              style={({ pressed }) => [
-                styles.string,
-                active && styles.stringActive,
-                locked && styles.stringLocked,
-                playing && styles.stringPlaying,
-                pressed && { transform: [{ scale: 0.94 }] },
-              ]}
-            >
-              <Text style={[styles.stringNote, locked && styles.onLocked]}>
-                {pitchClass(string.note)}
-              </Text>
-              {toneMode ? (
-                <SpeakerIcon color={locked ? colors.background : playing ? colors.inTune : colors.muted} size={12} />
-              ) : (
-                <Text style={[styles.stringNumber, locked && styles.onLocked]}>{strings.length - index}</Text>
-              )}
-              {tuned && (
-                <View style={[styles.tunedBadge, locked && styles.tunedBadgeOnLocked]} accessibilityLabel="Tuned">
-                  <Text style={[styles.tunedBadgeText, locked && styles.tunedBadgeTextOnLocked]}>✓</Text>
-                </View>
-              )}
-            </Pressable>
+            <Animated.View key={index} style={{ transform: [{ scale: waves[index] }] }}>
+              <Pressable
+                onPress={() => (toneMode ? onPlay(string) : select(locked ? null : index))}
+                accessibilityLabel={`${toneMode ? 'Play' : 'String'} ${strings.length - index}, ${string.note}`}
+                style={({ pressed }) => [
+                  styles.string,
+                  active && styles.stringActive,
+                  locked && styles.stringLocked,
+                  playing && styles.stringPlaying,
+                  pressed && { transform: [{ scale: 0.94 }] },
+                ]}
+              >
+                <Text style={[styles.stringNote, locked && styles.onLocked]}>
+                  {pitchClass(string.note)}
+                </Text>
+                {toneMode ? (
+                  <SpeakerIcon color={locked ? colors.background : playing ? colors.inTune : colors.muted} size={12} />
+                ) : (
+                  <Text style={[styles.stringNumber, locked && styles.onLocked]}>{strings.length - index}</Text>
+                )}
+                {tuned && (
+                  <View style={[styles.tunedBadge, locked && styles.tunedBadgeOnLocked]} accessibilityLabel="Tuned">
+                    <Text style={[styles.tunedBadgeText, locked && styles.tunedBadgeTextOnLocked]}>✓</Text>
+                  </View>
+                )}
+              </Pressable>
+            </Animated.View>
           );
         })}
       </View>
