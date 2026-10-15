@@ -1,5 +1,6 @@
 import { ChordQuality, PITCH_NAMES, TEMPLATES } from '../chords';
 import { detectChord } from '../detectChord';
+import { CHORD_BOOK } from '../chordBook';
 import { findFingerings, GUITAR, rankByHeard, UKULELE } from '../fingerings';
 import { SAMPLE_RATE, strum } from '../testing/synth';
 
@@ -243,3 +244,31 @@ describe('barres', () => {
     expect(first('D', 'maj', UKULELE).barre).toBeNull(); // 2220: three fingers
   });
 });
+
+describe('chord book', () => {
+  it.each(
+    Object.entries(CHORD_BOOK).flatMap(([id, chords]) =>
+      Object.entries(chords).flatMap(([name, shapes]) => shapes.map((shape) => [id, name, shape] as const)),
+    ),
+  )('%s %s (%s) is a valid shape and is offered', (id, name, shape) => {
+    const instrument = id === 'ukulele' ? UKULELE : GUITAR;
+    const match = /^([A-G]#?)(.*?)(?:\/([A-G]#?))?$/.exec(name)!;
+    const quality = TEMPLATES.find((t) => t.suffix === match[2])!.quality;
+    const chord = { root: pc(match[1]), quality, bass: pc(match[3] ?? match[1]) };
+    // Only the chord's notes, all of them, playable: findFingerings rejects
+    // anything else, so a typo in the book makes this fail.
+    expect(findFingerings(chord, instrument, 10).map((f) => shape_(f.frets))).toContain(shape);
+  });
+
+  it('puts the standard add9 shapes first', () => {
+    expect(shapes('C', 'add9')[0]).toBe('x32030');
+    expect(shapes('G', 'add9')[0]).toBe('320203');
+    expect(
+      findFingerings({ root: pc('C'), quality: 'add9', bass: pc('C') }, UKULELE).map((f) => shape(f.frets))[0],
+    ).toBe('0203');
+  });
+});
+
+function shape_(frets: (number | null)[]) {
+  return frets.map((f) => f ?? 'x').join('');
+}

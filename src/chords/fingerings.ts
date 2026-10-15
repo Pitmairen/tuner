@@ -1,4 +1,5 @@
-import { Chord, chordPitchClasses, TEMPLATES } from './chords';
+import { CHORD_BOOK } from './chordBook';
+import { Chord, chordName, chordPitchClasses, TEMPLATES } from './chords';
 
 export type FretInstrumentId = 'guitar' | 'ukulele';
 
@@ -53,7 +54,8 @@ const MAX_POSITION = 12;
 const MAX_FINGERS = 4;
 
 /**
- * Playable fingerings for a chord, easiest first. Searches every hand
+ * Playable fingerings for a chord: the chord book's standard shapes first,
+ * then the generator's, easiest first. The generator searches every hand
  * position for fret combinations that sound only chord tones, include all of
  * them (a 7th chord may drop its 5th), have the chord's bass as the lowest
  * note (except on re-entrant instruments), and fit four fingers (counting a
@@ -97,11 +99,25 @@ export function findFingerings(chord: Chord, instrument = GUITAR, limit = 3): Fi
     visit(0);
   }
 
-  const ranked = [...found.values()].sort((a, b) => a.score - b.score);
-  // Drop truncated copies of fuller, better-ranked shapes (320xxx is just
-  // 320003 with the top strings left out). An awkward extension like 502220
-  // doesn't knock out the natural x02220, since it ranks lower.
-  const complete = ranked.filter((shape, i) => !ranked.slice(0, i).some((better) => extends_(better, shape)));
+  // The chord book's shapes lead: the generator's scoring can't tell the
+  // standard Cadd9 (x32030) from an easier but unusual one (x30010).
+  const name = chordName(reentrant ? { ...chord, bass: chord.root } : chord);
+  const book = (CHORD_BOOK[instrument.id][name] ?? []).flatMap((shape) => {
+    const frets = shape.split('').map((c) => (c === 'x' ? null : Number(c)));
+    const fingering = evaluate(frets, tuning, reentrant, mutePenalty, chord, tones, fifth, isSeventh, minStrings, false);
+    return fingering ? [fingering] : [];
+  });
+
+  const ranked = [...book, ...[...found.values()].sort((a, b) => a.score - b.score)];
+  // Drop duplicates, and truncated copies of fuller, better-ranked shapes
+  // (320xxx is just 320003 with the top strings left out). An awkward
+  // extension like 502220 doesn't knock out the natural x02220, since it
+  // ranks lower.
+  const key = (f: Fingering) => f.frets.join();
+  const complete = ranked.filter(
+    (shape, i) =>
+      !ranked.slice(0, i).some((better) => key(better) === key(shape) || extends_(better, shape)),
+  );
   return complete.slice(0, limit);
 }
 
@@ -128,6 +144,11 @@ function evaluate(
   fifth: number,
   isSeventh: boolean,
   minStrings: number,
+  /**
+   * Check the hand can play it (span, fingers, no crossing). Off for chord-book
+   * shapes, which are known to be played, sometimes with the thumb (D/F#).
+   */
+  checkPlayability = true,
 ): Fingering | null {
   const sounding = frets.flatMap((f, s) => (f == null ? [] : [{ string: s, fret: f, midi: tuning[s] + f }]));
   if (sounding.length < minStrings) return null;
@@ -145,11 +166,12 @@ function evaluate(
   const first = sounding[0].string;
   const last = sounding[sounding.length - 1].string;
   const innerMutes = frets.slice(first, last + 1).filter((f) => f == null).length;
-  if (innerMutes > 1) return null;
+  if (checkPlayability && innerMutes > 1) return null;
 
   const fretted = sounding.filter((n) => n.fret > 0);
   const frettedFrets = fretted.map((n) => n.fret);
-  if (frettedFrets.length > 0 && Math.max(...frettedFrets) - Math.min(...frettedFrets) > HAND_SPAN) return null;
+  const span = frettedFrets.length > 0 ? Math.max(...frettedFrets) - Math.min(...frettedFrets) : 0;
+  if (checkPlayability && span > HAND_SPAN) return null;
 
   // A barre: the lowest fret, held on two or more strings, with nothing open
   // or muted underneath it.
@@ -177,11 +199,11 @@ function evaluate(
         // Without a barre each note needs its own finger, and fingers can't
         // cross: a higher-fretted note between two lowest-fret notes (10321x)
         // is unplayable. Open strings between them are fine (A7: x02020).
-        return null;
+        if (checkPlayability) return null;
       }
     }
   }
-  if (fingers > MAX_FINGERS) return null;
+  if (checkPlayability && fingers > MAX_FINGERS) return null;
 
   const lowestFret = frettedFrets.length > 0 ? Math.min(...frettedFrets) : 0;
   const highestFret = frettedFrets.length > 0 ? Math.max(...frettedFrets) : 0;
