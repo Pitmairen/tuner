@@ -9,11 +9,12 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 
 import { detectPitch } from './pitch';
+import { Detection, WIDE_DETECTION } from './tunings';
 
 export type PermissionState = 'unknown' | 'granted' | 'denied';
 
-/** ~85 ms at 48 kHz: enough for two periods of a low C (65 Hz). */
-const WINDOW_SIZE = 4096;
+/** Holds the longest analysis window; shorter ones read its most recent samples. */
+const RING_SIZE = WIDE_DETECTION.windowSize;
 const ANALYSIS_INTERVAL_MS = 60;
 const HISTORY_SIZE = 5;
 /** How long to keep showing the last pitch after the string goes quiet. */
@@ -24,17 +25,25 @@ const MIN_CLARITY = 0.85;
  * Streams the microphone and reports a smoothed fundamental frequency,
  * or null when nothing is being played. While `muted`, input is ignored.
  */
-export function usePitch(muted = false) {
+export function usePitch(muted: boolean, detection: Detection) {
   const [permission, setPermission] = useState<PermissionState>('unknown');
   const [frequency, setFrequency] = useState<number | null>(null);
 
-  const ring = useRef(new Float32Array(WINDOW_SIZE));
+  const ring = useRef(new Float32Array(RING_SIZE));
   const writeIndex = useRef(0);
   const filled = useRef(0);
   const lastAnalysis = useRef(0);
   const lastHeard = useRef(0);
   const history = useRef<number[]>([]);
   const mutedRef = useRef(muted);
+  const detectionRef = useRef(detection);
+
+  useEffect(() => {
+    // Readings from the previous instrument's settings shouldn't be smoothed
+    // together with the new ones.
+    detectionRef.current = detection;
+    history.current = [];
+  }, [detection]);
 
   useEffect(() => {
     mutedRef.current = muted;
@@ -51,15 +60,17 @@ export function usePitch(muted = false) {
     const step = Math.max(1, buffer.channels);
     for (let i = 0; i < samples.length; i += step) {
       ring.current[writeIndex.current] = samples[i];
-      writeIndex.current = (writeIndex.current + 1) % WINDOW_SIZE;
+      writeIndex.current = (writeIndex.current + 1) % RING_SIZE;
     }
-    filled.current = Math.min(WINDOW_SIZE, filled.current + samples.length / step);
+    filled.current = Math.min(RING_SIZE, filled.current + samples.length / step);
 
+    const { windowSize, minFrequency, decimation } = detectionRef.current;
     const now = Date.now();
-    if (filled.current < WINDOW_SIZE || now - lastAnalysis.current < ANALYSIS_INTERVAL_MS) return;
+    if (filled.current < windowSize || now - lastAnalysis.current < ANALYSIS_INTERVAL_MS) return;
     lastAnalysis.current = now;
 
-    const result = detectPitch(unroll(ring.current, writeIndex.current), buffer.sampleRate);
+    const window = latest(ring.current, writeIndex.current, windowSize);
+    const result = detectPitch(window, buffer.sampleRate, { minFrequency, decimation });
     if (result && result.clarity >= MIN_CLARITY) {
       lastHeard.current = now;
       history.current = [...history.current.slice(-(HISTORY_SIZE - 1)), result.frequency];
@@ -120,10 +131,17 @@ export function usePitch(muted = false) {
   return { frequency: muted ? null : frequency, permission, retry: start };
 }
 
-function unroll(ring: Float32Array, start: number): Float32Array {
-  const out = new Float32Array(ring.length);
-  out.set(ring.subarray(start));
-  out.set(ring.subarray(0, start), ring.length - start);
+/** The most recent `length` samples of the ring, oldest first. */
+function latest(ring: Float32Array, writeIndex: number, length: number): Float32Array {
+  const out = new Float32Array(length);
+  const start = (writeIndex - length + ring.length) % ring.length;
+  if (start + length <= ring.length) {
+    out.set(ring.subarray(start, start + length));
+  } else {
+    const head = ring.length - start;
+    out.set(ring.subarray(start));
+    out.set(ring.subarray(0, length - head), head);
+  }
   return out;
 }
 

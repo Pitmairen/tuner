@@ -10,7 +10,7 @@ import { StringSelector } from './src/components/StringSelector';
 import { TuningSheet } from './src/components/TuningSheet';
 import { centsColor, colors } from './src/theme';
 import { DEFAULT_A4, pitchClass } from './src/tuner/notes';
-import { CHROMATIC_ID, TUNINGS } from './src/tuner/tunings';
+import { CHROMATIC_ID, instrument, InstrumentId, TUNINGS } from './src/tuner/tunings';
 import { useCustomTunings } from './src/tuner/useCustomTunings';
 import { useReferenceTone } from './src/tuner/useReferenceTone';
 import { IN_TUNE_CENTS, useTuner } from './src/tuner/useTuner';
@@ -32,10 +32,11 @@ function TunerScreen() {
   // of) a custom tuning apply immediately.
   const [settings, updateSettings] = useSettings();
   const chromatic = settings.tuningId === CHROMATIC_ID;
-  // In chromatic mode this is only the starting point for a new custom tuning.
+  // Unused in chromatic mode, where it falls back to guitar Standard.
   const tuning = [...TUNINGS, ...custom.tunings].find((t) => t.id === settings.tuningId) ?? TUNINGS[0];
   const [lockedString, setLockedString] = useState<number | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [sheetInstrument, setSheetInstrument] = useState<InstrumentId>(tuning.instrument);
   const [toneMode, setToneMode] = useState(false);
   const tone = useReferenceTone();
   // Stop listening while a reference note plays so the tuner doesn't hear itself.
@@ -59,9 +60,14 @@ function TunerScreen() {
     <SafeAreaView style={styles.screen}>
       <View style={styles.header}>
         <Text style={styles.brand}>tuner</Text>
-        <Pressable onPress={() => setSheetOpen(true)} style={({ pressed }) => [styles.tuningChip, pressed && { opacity: 0.7 }]}>
+        <Pressable
+          onPress={() => {
+            setSheetInstrument(tuning.instrument);
+            setSheetOpen(true);
+          }}
+          style={({ pressed }) => [styles.tuningChip, pressed && { opacity: 0.7 }]}>
           <Text style={styles.tuningName} numberOfLines={1}>
-            {chromatic ? 'Chromatic' : tuning.name}
+            {chromatic ? 'Chromatic' : `${instrument(tuning.instrument).name} · ${tuning.name}`}
           </Text>
           <Text style={styles.tuningNotes}>{chromatic ? 'Any note' : tuning.notes.map(pitchClass).join(' ')}</Text>
           {settings.a4 !== DEFAULT_A4 && <Text style={styles.a4Tag}>A{settings.a4}</Text>}
@@ -72,7 +78,7 @@ function TunerScreen() {
       {permission === 'denied' ? (
         <View style={styles.permission}>
           <Text style={styles.permissionTitle}>Microphone access needed</Text>
-          <Text style={styles.permissionBody}>The tuner listens to your guitar through the microphone. Nothing is recorded or stored.</Text>
+          <Text style={styles.permissionBody}>The tuner listens to your instrument through the microphone. Nothing is recorded or stored.</Text>
           <Pressable style={styles.permissionButton} onPress={() => Linking.openSettings()}>
             <Text style={styles.permissionButtonText}>Open Settings</Text>
           </Pressable>
@@ -139,7 +145,8 @@ function TunerScreen() {
       <TuningSheet
         visible={sheetOpen}
         selectedId={chromatic ? CHROMATIC_ID : tuning.id}
-        baseTuning={tuning}
+        instrumentTab={sheetInstrument}
+        onInstrumentTabChange={setSheetInstrument}
         a4={settings.a4}
         onA4Change={(a4) => updateSettings({ a4 })}
         customTunings={custom.tunings}

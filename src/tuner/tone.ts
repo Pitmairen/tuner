@@ -2,7 +2,8 @@ export const TONE_DURATION_S = 2.5;
 /** Time between strings in a strum. */
 export const STRUM_GAP_S = 0.35;
 const SAMPLE_RATE = 44100;
-const HARMONICS = 8;
+const MIN_HARMONICS = 8;
+const MAX_HARMONICS = 24;
 const ATTACK_S = 0.004;
 const RELEASE_S = 0.08;
 
@@ -31,7 +32,10 @@ export function strumDurationS(stringCount: number): number {
 /** Mixes one decaying note into `samples`, starting at `offset`. */
 function addPluck(samples: Float32Array, frequency: number, offset: number) {
   const attack = ATTACK_S * SAMPLE_RATE;
-  for (let h = 1; h <= HARMONICS; h++) {
+  // Phone speakers can't reproduce deep bass fundamentals, so low notes get
+  // harmonics up to ~600 Hz; the ear infers the missing fundamental from them.
+  const harmonics = Math.min(MAX_HARMONICS, Math.max(MIN_HARMONICS, Math.round(600 / frequency)));
+  for (let h = 1; h <= harmonics; h++) {
     const f = frequency * h;
     if (f > SAMPLE_RATE / 2.2) break;
     // Higher harmonics die out faster, like a real string.

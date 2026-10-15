@@ -5,15 +5,16 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { colors } from '../theme';
 import { DEFAULT_A4, MAX_A4, MIN_A4, pitchClass } from '../tuner/notes';
-import { CHROMATIC_ID, Tuning, TuningString, TUNINGS } from '../tuner/tunings';
+import { CHROMATIC_ID, InstrumentId, INSTRUMENTS, Tuning, TuningString, TUNINGS } from '../tuner/tunings';
 import { TuningEditor } from './TuningEditor';
 
 type Props = {
   visible: boolean;
   /** A tuning id, or CHROMATIC_ID. */
   selectedId: string;
-  /** Where a new custom tuning starts from. */
-  baseTuning: Tuning;
+  /** Which instrument's tunings are listed. */
+  instrumentTab: InstrumentId;
+  onInstrumentTabChange: (id: InstrumentId) => void;
   a4: number;
   onA4Change: (a4: number) => void;
   customTunings: Tuning[];
@@ -27,7 +28,8 @@ type Props = {
 export function TuningSheet({
   visible,
   selectedId,
-  baseTuning,
+  instrumentTab,
+  onInstrumentTabChange,
   a4,
   onA4Change,
   customTunings,
@@ -44,6 +46,11 @@ export function TuningSheet({
     setEditing(null);
     onClose();
   };
+
+  const builtIn = TUNINGS.filter((t) => t.instrument === instrumentTab);
+  const custom = customTunings.filter((t) => t.instrument === instrumentTab);
+  // A new custom tuning copies the selected one when it's on this instrument.
+  const baseTuning = [...builtIn, ...custom].find((t) => t.id === selectedId) ?? builtIn[0];
 
   const renderItem = (tuning: Tuning) => {
     const isSelected = tuning.id === selectedId;
@@ -122,12 +129,12 @@ export function TuningSheet({
                   <View style={[styles.radio, selectedId === CHROMATIC_ID && styles.radioSelected]} />
                 </Pressable>
 
-                <Text style={styles.section}>Guitar</Text>
+                <InstrumentTabs selected={instrumentTab} onChange={onInstrumentTabChange} />
 
-                {TUNINGS.map(renderItem)}
+                {builtIn.map(renderItem)}
 
                 <Text style={styles.section}>Custom</Text>
-                {customTunings.map(renderItem)}
+                {custom.map(renderItem)}
                 <Pressable
                   onPress={() => setEditing({ tuning: baseTuning, isNew: true })}
                   style={({ pressed }) => [styles.create, pressed && styles.itemPressed]}
@@ -144,6 +151,31 @@ export function TuningSheet({
         </View>
       </KeyboardAvoidingView>
     </Modal>
+  );
+}
+
+function InstrumentTabs({ selected, onChange }: { selected: InstrumentId; onChange: (id: InstrumentId) => void }) {
+  return (
+    <View style={styles.tabs} accessibilityRole="tablist">
+      {INSTRUMENTS.map(({ id, name }) => {
+        const active = id === selected;
+        return (
+          <Pressable
+            key={id}
+            onPress={() => {
+              if (active) return;
+              Haptics.selectionAsync();
+              onChange(id);
+            }}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: active }}
+            style={[styles.tab, active && styles.tabActive]}
+          >
+            <Text style={[styles.tabText, active && styles.tabTextActive]}>{name}</Text>
+          </Pressable>
+        );
+      })}
+    </View>
   );
 }
 
@@ -194,6 +226,32 @@ function ReferencePitch({ a4, onChange }: { a4: number; onChange: (a4: number) =
 }
 
 const styles = StyleSheet.create({
+  tabs: {
+    flexDirection: 'row',
+    padding: 4,
+    marginTop: 16,
+    marginBottom: 8,
+    borderRadius: 14,
+    backgroundColor: colors.background,
+  },
+  tab: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
+  tabActive: {
+    backgroundColor: colors.surfaceRaised,
+  },
+  tabText: {
+    color: colors.muted,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  tabTextActive: {
+    color: colors.text,
+    fontWeight: '700',
+  },
   reference: {
     flexDirection: 'row',
     alignItems: 'center',

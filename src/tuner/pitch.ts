@@ -11,6 +11,12 @@ type DetectOptions = {
   threshold?: number;
   /** RMS below this is treated as silence. */
   silenceRms?: number;
+  /**
+   * Downsampling factor applied before analysis. Low notes need long windows,
+   * and the O(n·τ) difference function only stays cheap at a reduced rate.
+   * Defaults to 2 for rates of 32 kHz and up.
+   */
+  decimation?: number;
 };
 
 /**
@@ -20,16 +26,13 @@ type DetectOptions = {
 export function detectPitch(
   input: Float32Array,
   sampleRate: number,
-  { minFrequency = 60, maxFrequency = 1200, threshold = 0.15, silenceRms = 0.008 }: DetectOptions = {},
+  { minFrequency = 60, maxFrequency = 1200, threshold = 0.15, silenceRms = 0.008, decimation }: DetectOptions = {},
 ): PitchResult | null {
-  // Guitar fundamentals sit well below 1.2 kHz, so halve high sample rates to
-  // cut the O(n·τ) cost of the difference function.
-  let buffer = input;
-  let rate = sampleRate;
-  if (sampleRate >= 32000) {
-    buffer = decimateByTwo(input);
-    rate = sampleRate / 2;
-  }
+  // Instrument fundamentals sit well below 1.2 kHz, so the signal can be
+  // downsampled to cut the O(n·τ) cost of the difference function.
+  const factor = decimation ?? (sampleRate >= 32000 ? 2 : 1);
+  const buffer = factor > 1 ? decimate(input, factor) : input;
+  const rate = sampleRate / factor;
 
   let sumSquares = 0;
   for (let i = 0; i < buffer.length; i++) sumSquares += buffer[i] * buffer[i];
@@ -64,10 +67,41 @@ export function detectPitch(
   }
   if (tau === -1) return null;
 
-  return {
-    frequency: rate / refineTau(cmnd, tau, tauMax),
-    clarity: 1 - cmnd[tau],
-  };
+  const coarsePeriod = refineTau(cmnd, tau, tauMax) * factor;
+  const period = factor > 1 ? refineAtFullRate(input, coarsePeriod, factor) : coarsePeriod;
+  return { frequency: sampleRate / period, clarity: 1 - cmnd[tau] };
+}
+
+/**
+ * Downsampling makes the period estimate coarse (a 440 Hz period is only ~27
+ * samples at 12 kHz). Re-evaluate the difference function on the original
+ * signal at just the few lags around the estimate, which restores full
+ * accuracy for almost no cost.
+ */
+function refineAtFullRate(input: Float32Array, coarsePeriod: number, factor: number): number {
+  const lo = Math.max(2, Math.floor(coarsePeriod) - factor);
+  const hi = Math.ceil(coarsePeriod) + factor;
+  const window = input.length - (hi + 1);
+  if (window <= 0) return coarsePeriod;
+
+  const diff = new Float64Array(hi - lo + 3);
+  for (let tau = lo - 1; tau <= hi + 1; tau++) {
+    let sum = 0;
+    for (let i = 0; i < window; i++) {
+      const delta = input[i] - input[i + tau];
+      sum += delta * delta;
+    }
+    diff[tau - lo + 1] = sum;
+  }
+
+  let best = 1;
+  for (let k = 2; k <= hi - lo + 1; k++) if (diff[k] < diff[best]) best = k;
+  const prev = diff[best - 1];
+  const curr = diff[best];
+  const next = diff[best + 1];
+  const denominator = 2 * (2 * curr - next - prev);
+  const offset = denominator === 0 ? 0 : (next - prev) / denominator;
+  return lo - 1 + best + offset;
 }
 
 /** Parabolic interpolation around the minimum for sub-sample accuracy. */
@@ -80,10 +114,13 @@ function refineTau(cmnd: Float32Array, tau: number, tauMax: number): number {
   return denominator === 0 ? tau : tau + (next - prev) / denominator;
 }
 
-function decimateByTwo(input: Float32Array): Float32Array {
-  const output = new Float32Array(Math.floor(input.length / 2));
+/** Averages each run of `factor` samples: a crude but cheap low-pass and downsample. */
+function decimate(input: Float32Array, factor: number): Float32Array {
+  const output = new Float32Array(Math.floor(input.length / factor));
   for (let i = 0; i < output.length; i++) {
-    output[i] = (input[2 * i] + input[2 * i + 1]) * 0.5;
+    let sum = 0;
+    for (let j = 0; j < factor; j++) sum += input[i * factor + j];
+    output[i] = sum / factor;
   }
   return output;
 }

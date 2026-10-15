@@ -14,6 +14,8 @@ const TAIL_MS = 300;
 const FADE_MS = 80;
 const FADE_STEPS = 8;
 const POOL_SIZE = 3;
+/** Bump when the synthesized sound changes so stale cached files aren't reused. */
+const TONE_VERSION = 2;
 
 /** Plays a synthesized reference note. `playing` is the note currently sounding. */
 export function useReferenceTone() {
@@ -99,7 +101,7 @@ export function useReferenceTone() {
   const play = useCallback(
     (string: TuningString) => {
       // Keyed by frequency, not note, so a different A4 gets its own file.
-      const file = new File(Paths.cache, `tone-${string.frequency.toFixed(3)}.wav`);
+      const file = new File(Paths.cache, `tone-v${TONE_VERSION}-${string.frequency.toFixed(3)}.wav`);
       if (!file.exists) file.write(synthesizeToneWav(string.frequency));
       setStrumming(false);
       playFile(file, [{ note: string.note, atMs: 0 }], TONE_DURATION_S * 1000);
@@ -110,7 +112,7 @@ export function useReferenceTone() {
   /** Plays every string in order, low to high, like a slow strum. */
   const strum = useCallback(
     (strings: TuningString[]) => {
-      const file = new File(Paths.cache, `strum-${strings.map((s) => s.frequency.toFixed(3)).join('-')}.wav`);
+      const file = new File(Paths.cache, `strum-v${TONE_VERSION}-${strings.map((s) => s.frequency.toFixed(3)).join('-')}.wav`);
       if (!file.exists) file.write(synthesizeStrumWav(strings.map((s) => s.frequency)));
       setStrumming(true);
       playFile(

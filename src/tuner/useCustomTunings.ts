@@ -2,22 +2,32 @@ import { useCallback, useState } from 'react';
 
 import { readJson, writeJson } from '../storage';
 import { parseNote } from './notes';
-import { Tuning } from './tunings';
+import { INSTRUMENTS, Tuning } from './tunings';
 
-const STRING_COUNT = 6;
+const MIN_STRINGS = 4;
+const MAX_STRINGS = 6;
 const FILE_NAME = 'custom-tunings.json';
 
 function load(): Tuning[] {
   const parsed = readJson(FILE_NAME);
-  return Array.isArray(parsed) ? parsed.filter(isValidTuning) : [];
+  if (!Array.isArray(parsed)) return [];
+  // Tunings saved before other instruments existed have no instrument: guitar.
+  return parsed
+    .map((t) => (isObject(t) && t.instrument == null ? { ...t, instrument: 'guitar' } : t))
+    .filter(isValidTuning);
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value != null;
 }
 
 /** Drops anything malformed so a bad file can never crash the tuner. */
 function isValidTuning(value: unknown): value is Tuning {
-  if (typeof value !== 'object' || value == null) return false;
-  const { id, name, notes } = value as Partial<Tuning>;
+  if (!isObject(value)) return false;
+  const { id, name, notes, instrument } = value as Partial<Tuning>;
   if (typeof id !== 'string' || typeof name !== 'string') return false;
-  if (!Array.isArray(notes) || notes.length !== STRING_COUNT) return false;
+  if (!INSTRUMENTS.some((i) => i.id === instrument)) return false;
+  if (!Array.isArray(notes) || notes.length < MIN_STRINGS || notes.length > MAX_STRINGS) return false;
   return notes.every((note) => {
     try {
       parseNote(note);

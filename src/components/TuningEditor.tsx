@@ -4,13 +4,8 @@ import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 
 
 import { colors } from '../theme';
 import { midiToFrequency, noteName, parseNote } from '../tuner/notes';
-import { Tuning, TuningString } from '../tuner/tunings';
+import { instrument, Tuning, TuningString } from '../tuner/tunings';
 import { SpeakerIcon } from './icons';
-
-/** B1: the lowest note the pitch detector reliably hears (~62 Hz). */
-const MIN_MIDI = 35;
-/** C5. */
-const MAX_MIDI = 72;
 
 type Props = {
   /** The tuning to edit, or the starting point for a new one. */
@@ -27,6 +22,8 @@ export function TuningEditor({ initial, isNew, a4, onSave, onDelete, onCancel, o
   const [name, setName] = useState(isNew ? '' : initial.name);
   const [midis, setMidis] = useState(() => initial.notes.map(parseNote));
   const trimmedName = name.trim();
+  // A tuning keeps its instrument (and so its string count and note range).
+  const { minMidi, maxMidi, name: instrumentName } = instrument(initial.instrument);
 
   const toNote = (midi: number) => {
     const { name: pitch, octave } = noteName(midi);
@@ -35,7 +32,7 @@ export function TuningEditor({ initial, isNew, a4, onSave, onDelete, onCancel, o
 
   const step = (index: number, delta: number) => {
     const next = midis[index] + delta;
-    if (next < MIN_MIDI || next > MAX_MIDI) return;
+    if (next < minMidi || next > maxMidi) return;
     Haptics.selectionAsync();
     setMidis(midis.map((m, i) => (i === index ? next : m)));
   };
@@ -53,6 +50,7 @@ export function TuningEditor({ initial, isNew, a4, onSave, onDelete, onCancel, o
     onSave({
       id: isNew ? `custom-${Date.now()}` : initial.id,
       name: trimmedName,
+      instrument: initial.instrument,
       notes: midis.map(toNote),
       custom: true,
     });
@@ -64,7 +62,7 @@ export function TuningEditor({ initial, isNew, a4, onSave, onDelete, onCancel, o
         <Pressable onPress={onCancel} hitSlop={10}>
           <Text style={styles.headerButton}>Cancel</Text>
         </Pressable>
-        <Text style={styles.title}>{isNew ? 'New tuning' : 'Edit tuning'}</Text>
+        <Text style={styles.title}>{isNew ? `New ${instrumentName.toLowerCase()} tuning` : 'Edit tuning'}</Text>
         <Pressable onPress={save} disabled={!trimmedName} hitSlop={10}>
           <Text style={[styles.headerButton, styles.save, !trimmedName && styles.disabled]}>Save</Text>
         </Pressable>
@@ -88,12 +86,12 @@ export function TuningEditor({ initial, isNew, a4, onSave, onDelete, onCancel, o
           return (
             <View key={index} style={styles.row}>
               <Text style={styles.stringNumber}>{midis.length - index}</Text>
-              <StepButton label="−" onPress={() => step(index, -1)} disabled={midi <= MIN_MIDI} />
+              <StepButton label="−" onPress={() => step(index, -1)} disabled={midi <= minMidi} />
               <View style={styles.noteBox}>
                 <Text style={styles.note}>{note}</Text>
                 <Text style={styles.frequency}>{frequency.toFixed(1)} Hz</Text>
               </View>
-              <StepButton label="+" onPress={() => step(index, 1)} disabled={midi >= MAX_MIDI} />
+              <StepButton label="+" onPress={() => step(index, 1)} disabled={midi >= maxMidi} />
               <Pressable
                 onPress={() => onPlay({ note, midi, frequency })}
                 accessibilityLabel={`Play ${note}`}
