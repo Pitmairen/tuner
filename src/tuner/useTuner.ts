@@ -2,7 +2,7 @@ import * as Haptics from 'expo-haptics';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { centsBetween, frequencyToMidi, midiToFrequency, noteName } from './notes';
-import { instrument, Tuning, TuningString, tuningStrings, WIDE_DETECTION } from './tunings';
+import { detectionFor, instrument, Tuning, TuningString, tuningStrings, WIDE_DETECTION } from './tunings';
 import { Steadiness } from './steadiness';
 import { usePitch } from './usePitch';
 
@@ -30,20 +30,25 @@ type Options = {
   /** Force this string as the target; null picks the nearest automatically. */
   lockedString: number | null;
   a4: number;
+  /** Semitones to shift every string's target (capo / transpose). Ignored in chromatic mode. */
+  transpose: number;
   /** While true, nothing is detected. */
   muted: boolean;
   steadiness: Steadiness;
 };
 
 /** Combines live pitch with the selected tuning (or chromatic mode). */
-export function useTuner({ tuning, chromatic, lockedString, a4, muted, steadiness }: Options) {
+export function useTuner({ tuning, chromatic, lockedString, a4, transpose, muted, steadiness }: Options) {
+  const strings = useMemo(() => tuningStrings(tuning, a4, transpose), [tuning, a4, transpose]);
   // Chromatic mode can't know the instrument, so it listens across the widest range.
-  const detection = chromatic ? WIDE_DETECTION : instrument(tuning.instrument).detection;
+  const detection = useMemo(
+    () => (chromatic ? WIDE_DETECTION : detectionFor(instrument(tuning.instrument).detection, strings)),
+    [chromatic, tuning.instrument, strings],
+  );
   const { frequency, permission, retry } = usePitch(muted, detection, steadiness);
-  const strings = useMemo(() => tuningStrings(tuning, a4), [tuning, a4]);
   // Keyed by tuning (including its notes, since custom tunings can be edited)
   // so switching or editing starts with nothing checked off.
-  const tuningKey = `${tuning.id}:${tuning.notes.join(',')}@${a4}`;
+  const tuningKey = `${tuning.id}:${tuning.notes.join(',')}@${a4}${transpose >= 0 ? '+' : ''}${transpose}`;
   const [tuned, setTuned] = useState({ tuningKey, strings: new Set<number>() });
   const tunedStrings = tuned.tuningKey === tuningKey ? tuned.strings : NO_STRINGS;
   const pending = useRef<{ stringIndex: number; tuned: boolean; since: number } | null>(null);

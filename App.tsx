@@ -10,7 +10,7 @@ import { StringSelector } from './src/components/StringSelector';
 import { TuningSheet } from './src/components/TuningSheet';
 import { centsColor, colors } from './src/theme';
 import { DEFAULT_A4, pitchClass } from './src/tuner/notes';
-import { CHROMATIC_ID, instrument, InstrumentId, TUNINGS } from './src/tuner/tunings';
+import { CHROMATIC_ID, instrument, InstrumentId, transposeLabel, TUNINGS } from './src/tuner/tunings';
 import { useCustomTunings } from './src/tuner/useCustomTunings';
 import { useReferenceTone } from './src/tuner/useReferenceTone';
 import { IN_TUNE_CENTS, useTuner } from './src/tuner/useTuner';
@@ -46,6 +46,7 @@ function TunerScreen() {
     chromatic,
     lockedString: chromatic ? null : lockedString,
     a4: settings.a4,
+    transpose: settings.transpose,
     muted: paused,
     steadiness: settings.steadiness,
   });
@@ -72,6 +73,9 @@ function TunerScreen() {
           </Text>
           <Text style={styles.tuningNotes}>{chromatic ? 'Any note' : tuning.notes.map(pitchClass).join(' ')}</Text>
           {settings.a4 !== DEFAULT_A4 && <Text style={styles.a4Tag}>A{settings.a4}</Text>}
+          {!chromatic && transposeLabel(settings.transpose) && (
+            <Text style={styles.a4Tag}>{transposeLabel(settings.transpose)}</Text>
+          )}
           <Text style={styles.chevron}>▾</Text>
         </Pressable>
       </View>
@@ -152,6 +156,8 @@ function TunerScreen() {
         onA4Change={(a4) => updateSettings({ a4 })}
         steadiness={settings.steadiness}
         onSteadinessChange={(steadiness) => updateSettings({ steadiness })}
+        transpose={settings.transpose}
+        onTransposeChange={(transpose) => updateSettings({ transpose })}
         customTunings={custom.tunings}
         onSaveCustom={custom.save}
         onDeleteCustom={custom.remove}

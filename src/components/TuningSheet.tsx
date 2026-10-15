@@ -6,7 +6,16 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../theme';
 import { DEFAULT_A4, MAX_A4, MIN_A4, pitchClass } from '../tuner/notes';
 import { Steadiness, STEADINESS_OPTIONS } from '../tuner/steadiness';
-import { CHROMATIC_ID, InstrumentId, INSTRUMENTS, Tuning, TuningString, TUNINGS } from '../tuner/tunings';
+import {
+  CHROMATIC_ID,
+  InstrumentId,
+  INSTRUMENTS,
+  MAX_TRANSPOSE,
+  MIN_TRANSPOSE,
+  Tuning,
+  TuningString,
+  TUNINGS,
+} from '../tuner/tunings';
 import { TuningEditor } from './TuningEditor';
 
 type Props = {
@@ -20,6 +29,8 @@ type Props = {
   onA4Change: (a4: number) => void;
   steadiness: Steadiness;
   onSteadinessChange: (steadiness: Steadiness) => void;
+  transpose: number;
+  onTransposeChange: (transpose: number) => void;
   customTunings: Tuning[];
   onSelect: (id: string) => void;
   onSaveCustom: (tuning: Tuning) => void;
@@ -37,6 +48,8 @@ export function TuningSheet({
   onA4Change,
   steadiness,
   onSteadinessChange,
+  transpose,
+  onTransposeChange,
   customTunings,
   onSelect,
   onSaveCustom,
@@ -120,6 +133,7 @@ export function TuningSheet({
               <ScrollView contentContainerStyle={styles.list}>
                 <ReferencePitch a4={a4} onChange={onA4Change} />
                 <NeedleSetting value={steadiness} onChange={onSteadinessChange} />
+                <Transpose value={transpose} onChange={onTransposeChange} />
                 <Pressable
                   onPress={() => onSelect(CHROMATIC_ID)}
                   style={({ pressed }) => [
@@ -221,6 +235,55 @@ function NeedleSetting({ value, onChange }: { value: Steadiness; onChange: (valu
 }
 
 /** A4 calibration: the pitch every other note is derived from. */
+/** Capo / transpose: shifts every string's target by whole semitones. */
+function Transpose({ value, onChange }: { value: number; onChange: (value: number) => void }) {
+  const step = (delta: number) => {
+    const next = value + delta;
+    if (next < MIN_TRANSPOSE || next > MAX_TRANSPOSE) return;
+    Haptics.selectionAsync();
+    onChange(next);
+  };
+  const semitones = (n: number) => `${n} semitone${n === 1 ? '' : 's'}`;
+  const description =
+    value === 0 ? 'Off' : value > 0 ? `Capo on fret ${value}` : `Strings ${semitones(-value)} lower`;
+
+  return (
+    <View style={styles.reference}>
+      <View style={styles.itemText}>
+        <Text style={styles.itemName}>Capo / transpose</Text>
+        <Text style={styles.itemNotes}>{description}</Text>
+        {value !== 0 && (
+          <Pressable onPress={() => onChange(0)} hitSlop={8}>
+            <Text style={styles.reset}>Reset</Text>
+          </Pressable>
+        )}
+      </View>
+      <Pressable
+        onPress={() => step(-1)}
+        disabled={value <= MIN_TRANSPOSE}
+        accessibilityLabel="Transpose down a semitone"
+        style={({ pressed }) => [styles.step, value <= MIN_TRANSPOSE && styles.disabled, pressed && styles.itemPressed]}
+      >
+        <Text style={styles.stepText}>−</Text>
+      </Pressable>
+      <View style={styles.a4Value} accessibilityLabel={`Transpose ${value} semitones`}>
+        <Text style={[styles.a4Number, value !== 0 && styles.a4Changed]}>
+          {value > 0 ? `+${value}` : value < 0 ? `−${-value}` : '0'}
+        </Text>
+        <Text style={styles.a4Unit}>semitones</Text>
+      </View>
+      <Pressable
+        onPress={() => step(1)}
+        disabled={value >= MAX_TRANSPOSE}
+        accessibilityLabel="Transpose up a semitone"
+        style={({ pressed }) => [styles.step, value >= MAX_TRANSPOSE && styles.disabled, pressed && styles.itemPressed]}
+      >
+        <Text style={styles.stepText}>+</Text>
+      </Pressable>
+    </View>
+  );
+}
+
 function ReferencePitch({ a4, onChange }: { a4: number; onChange: (a4: number) => void }) {
   const step = (delta: number) => {
     const next = a4 + delta;

@@ -66,13 +66,13 @@ export function usePitch(muted: boolean, detection: Detection, steadiness: Stead
     }
     filled.current = Math.min(RING_SIZE, filled.current + samples.length / step);
 
-    const { windowSize, minFrequency, decimation } = detectionRef.current;
+    const { windowSize, minFrequency, maxFrequency, decimation } = detectionRef.current;
     const now = Date.now();
     if (filled.current < windowSize || now - lastAnalysis.current < ANALYSIS_INTERVAL_MS) return;
     lastAnalysis.current = now;
 
     const window = latest(ring.current, writeIndex.current, windowSize);
-    const result = detectPitch(window, buffer.sampleRate, { minFrequency, decimation });
+    const result = detectPitch(window, buffer.sampleRate, { minFrequency, maxFrequency, decimation });
     if (result && result.clarity >= MIN_CLARITY) {
       lastHeard.current = now;
       setFrequency(smoother.push(result.frequency));
