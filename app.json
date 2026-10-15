@@ -47,6 +47,11 @@
       "expo-sharing"
     ],
     "backgroundColor": "#0B0D12",
-    "owner": "pitmairen"
+    "owner": "pitmairen",
+    "extra": {
+      "eas": {
+        "projectId": "f458a803-97a3-4426-b4e0-273f919cc7ad"
+      }
+    }
   }
 }
