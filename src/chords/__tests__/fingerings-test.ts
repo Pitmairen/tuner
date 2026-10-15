@@ -1,6 +1,6 @@
 import { ChordQuality, PITCH_NAMES, TEMPLATES } from '../chords';
 import { detectChord } from '../detectChord';
-import { findFingerings, rankByHeard, STANDARD_TUNING } from '../fingerings';
+import { findFingerings, GUITAR, rankByHeard, UKULELE } from '../fingerings';
 import { SAMPLE_RATE, strum } from '../testing/synth';
 
 const pc = (name: string) => PITCH_NAMES.indexOf(name);
@@ -45,7 +45,7 @@ describe('findFingerings', () => {
     for (const [root, bass] of [['C', 'E'], ['G', 'B'], ['D', 'F#']]) {
       for (const f of findFingerings({ root: pc(root), quality: 'maj', bass: pc(bass) })) {
         const lowest = f.frets.findIndex((fret) => fret != null);
-        expect((STANDARD_TUNING[lowest] + f.frets[lowest]!) % 12).toBe(pc(bass));
+        expect((GUITAR.tuning[lowest] + f.frets[lowest]!) % 12).toBe(pc(bass));
       }
     }
   });
@@ -96,13 +96,13 @@ describe('rankByHeard', () => {
   ] as [string, number[], string][])(
     'keeps the natural %s shape when doubled or quiet notes were missed',
     (root, heard, expected) => {
-      const options = findFingerings({ root: pc(root), quality: 'maj', bass: pc(root) }, STANDARD_TUNING, 12);
+      const options = findFingerings({ root: pc(root), quality: 'maj', bass: pc(root) }, GUITAR, 12);
       expect(shape(rankByHeard(options, heard)[0].frets)).toBe(expected);
     },
   );
 
   it('prefers the shape whose exact notes were heard', () => {
-    const options = findFingerings({ root: pc('C'), quality: 'maj', bass: pc('C') }, STANDARD_TUNING, 20);
+    const options = findFingerings({ root: pc('C'), quality: 'maj', bass: pc('C') }, GUITAR, 20);
     // A barre C on the 3rd fret, A-shape: x35553 → C3 G3 C4 E4 G4.
     const heard = [48, 55, 60, 64, 67];
     const ranked = rankByHeard(options, heard);
@@ -131,7 +131,7 @@ describe('detector → fingering, end to end', () => {
   it.each(OPEN_CHORDS)('shows %s for a strummed %s', (played, name) => {
     const notes = played
       .split('')
-      .flatMap((c, s) => (c === 'x' ? [] : [STANDARD_TUNING[s] + Number(c)]));
+      .flatMap((c, s) => (c === 'x' ? [] : [GUITAR.tuning[s] + Number(c)]));
     for (const [seed, options] of [
       [1, {}],
       [2, { snrDb: 18 }],
@@ -140,10 +140,106 @@ describe('detector → fingering, end to end', () => {
       const result = detectChord(strum(notes, { seed, ...options }), SAMPLE_RATE);
       expect(result?.name).toBe(name);
       const shown = rankByHeard(
-        findFingerings(result!.chord, STANDARD_TUNING, 12),
+        findFingerings(result!.chord, GUITAR, 12),
         result!.notes.map((n) => n.midi),
       )[0];
       expect({ seed, shape: shape(shown.frets) }).toEqual({ seed, shape: played });
     }
+  });
+});
+
+describe('ukulele (G C E A, re-entrant)', () => {
+  const uke = (root: string, quality: ChordQuality) =>
+    findFingerings({ root: pc(root), quality, bass: pc(root) }, UKULELE).map((f) => shape(f.frets));
+
+  it.each([
+    ['C', 'maj', '0003'],
+    ['A', 'min', '2000'],
+    ['F', 'maj', '2010'],
+    ['G', 'maj', '0232'],
+    ['D', 'maj', '2220'],
+    ['A', 'maj', '2100'],
+    ['D', 'min', '2210'],
+    ['A', '7', '0100'],
+    ['G', '7', '0212'],
+    ['C', '7', '0001'],
+    ['E', '7', '1202'],
+    ['A', 'm7', '0000'],
+    ['C', 'maj7', '0002'],
+    ['A#', 'maj', '3211'],
+  ] as [string, ChordQuality, string][])('finds the familiar %s %s shape first (%s)', (root, quality, expected) => {
+    expect(uke(root, quality)[0]).toBe(expected);
+  });
+
+  it('lists the usual Em (0432) among the options', () => {
+    // 0402 is an equally valid, easier Em, so either may come first.
+    expect(uke('E', 'min')).toContain('0432');
+  });
+
+  it('ignores the bass for slash chords (no inversions on a re-entrant uke)', () => {
+    const plain = uke('C', 'maj');
+    const slash = findFingerings({ root: pc('C'), quality: 'maj', bass: pc('E') }, UKULELE).map((f) => shape(f.frets));
+    expect(slash).toEqual(plain);
+  });
+
+  it('finds a playable shape for every chord the detector can name', () => {
+    const missing: string[] = [];
+    for (let root = 0; root < 12; root++) {
+      for (const { quality } of TEMPLATES) {
+        if (findFingerings({ root, quality, bass: root }, UKULELE).length === 0) missing.push(`${PITCH_NAMES[root]} ${quality}`);
+      }
+    }
+    expect(missing).toEqual([]);
+  });
+});
+
+describe('ukulele detector → fingering, end to end', () => {
+  const UKE_CHORDS: [string, string, ChordQuality][] = [
+    ['0003', 'C', 'maj'],
+    ['2000', 'A', 'min'],
+    ['2010', 'F', 'maj'],
+    ['0232', 'G', 'maj'],
+    ['2220', 'D', 'maj'],
+    ['2100', 'A', 'maj'],
+    ['2210', 'D', 'min'],
+    ['0100', 'A', '7'],
+    ['0212', 'G', '7'],
+    ['0000', 'A', 'm7'],
+  ];
+
+  it.each(UKE_CHORDS)('shows %s for a strummed ukulele %s %s', (played, root, quality) => {
+    const notes = played.split('').map((c, s) => UKULELE.tuning[s] + Number(c));
+    for (const [seed, options] of [
+      [1, {}],
+      [2, { snrDb: 18 }],
+      [3, { startMs: 400, detuneCents: 8 }],
+    ] as const) {
+      const result = detectChord(strum(notes, { seed, ...options }), SAMPLE_RATE);
+      // Root and quality; the bass is meaningless on a re-entrant ukulele.
+      expect({ seed, root: result?.chord.root, quality: result?.chord.quality }).toEqual({
+        seed,
+        root: pc(root),
+        quality,
+      });
+      const shown = rankByHeard(
+        findFingerings(result!.chord, UKULELE, 12),
+        result!.notes.map((n) => n.midi),
+        UKULELE,
+      )[0];
+      expect({ seed, shape: shape(shown.frets) }).toEqual({ seed, shape: played });
+    }
+  });
+});
+
+describe('barres', () => {
+  const first = (root: string, quality: ChordQuality, instrument = GUITAR) =>
+    findFingerings({ root: pc(root), quality, bass: pc(root) }, instrument)[0];
+
+  it('draws a barre only where the shape needs one', () => {
+    expect(first('F', 'maj').barre).not.toBeNull(); // 133211
+    expect(first('A#', 'maj', UKULELE).barre).not.toBeNull(); // 3211
+    expect(first('A', 'maj').barre).toBeNull(); // x02220: three fingers
+    expect(first('G', 'maj', UKULELE).barre).toBeNull(); // 0232: three fingers
+    expect(first('D', 'maj', UKULELE).barre).toBeNull(); // 2220: three fingers
   });
 });

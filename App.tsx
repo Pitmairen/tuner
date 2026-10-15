@@ -6,6 +6,7 @@ import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
 import { PITCH_NAMES } from './src/chords/chords';
 import { CLEAR_MATCH } from './src/chords/detectChord';
+import { FRET_INSTRUMENTS } from './src/chords/fingerings';
 import { ChordReadout } from './src/components/ChordReadout';
 import { Gauge } from './src/components/Gauge';
 import { MicOffIcon, SlidersIcon } from './src/components/icons';
@@ -40,6 +41,7 @@ function TunerScreen() {
   const [settings, updateSettings] = useSettings();
   const chromatic = settings.tuningId === CHROMATIC_ID;
   const chordMode = settings.tuningId === CHORD_ID;
+  const fingering = FRET_INSTRUMENTS.find((i) => i.id === settings.fingering) ?? null;
   /** Chromatic and chord modes have no strings to tune. */
   const freeform = chromatic || chordMode;
   // Unused in freeform modes, where it falls back to guitar Standard.
@@ -56,6 +58,8 @@ function TunerScreen() {
     tuning,
     chromatic,
     chordMode,
+    // A ukulele's lowest note isn't the chord's bass, so no slash chords.
+    ignoreBass: fingering?.reentrant ?? false,
     lockedString: freeform ? null : lockedString,
     a4: settings.a4,
     transpose: settings.transpose,
@@ -132,7 +136,7 @@ function TunerScreen() {
         </View>
       ) : chordMode ? (
         <View style={styles.main}>
-          <ChordReadout result={chord} showFingering={settings.showFingering} />
+          <ChordReadout result={chord} fingering={fingering} />
         </View>
       ) : (
         <View style={styles.main}>
@@ -235,8 +239,8 @@ function TunerScreen() {
         transpose={settings.transpose}
         onTransposeChange={(transpose) => updateSettings({ transpose })}
         transposeApplies={!freeform}
-        showFingering={settings.showFingering}
-        onShowFingeringChange={(showFingering) => updateSettings({ showFingering })}
+        fingering={settings.fingering}
+        onFingeringChange={(value) => updateSettings({ fingering: value })}
       />
     </SafeAreaView>
   );

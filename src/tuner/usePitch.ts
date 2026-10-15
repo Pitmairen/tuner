@@ -8,7 +8,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 
-import { ChordResult, detectChord } from '../chords/detectChord';
+import { ChordResult, detectChord, DetectOptions } from '../chords/detectChord';
 import { ChordStabilizer } from '../chords/stabilizer';
 import { detectPitch } from './pitch';
 import { PitchSmoother, Steadiness } from './steadiness';
@@ -29,10 +29,15 @@ const MIN_CLARITY = 0.85;
 
 /**
  * Streams the microphone and reports a smoothed fundamental frequency, or
- * null when nothing is being played. With `chordA4` set it recognises chords
- * instead (using that reference pitch). While `muted`, input is ignored.
+ * null when nothing is being played. With `chordOptions` set it recognises
+ * chords instead. While `muted`, input is ignored.
  */
-export function usePitch(muted: boolean, detection: Detection, steadiness: Steadiness, chordA4: number | null) {
+export function usePitch(
+  muted: boolean,
+  detection: Detection,
+  steadiness: Steadiness,
+  chordOptions: DetectOptions | null,
+) {
   const [permission, setPermission] = useState<PermissionState>('unknown');
   const [frequency, setFrequency] = useState<number | null>(null);
   const [chord, setChord] = useState<ChordResult | null>(null);
@@ -46,13 +51,16 @@ export function usePitch(muted: boolean, detection: Detection, steadiness: Stead
   const mutedRef = useRef(muted);
   const detectionRef = useRef(detection);
   const [stabilizer] = useState(() => new ChordStabilizer());
-  const chordA4Ref = useRef(chordA4);
+  const chordOptionsRef = useRef(chordOptions);
+  // Compared by value: callers build a fresh object each render.
+  const chordKey = chordOptions ? `${chordOptions.a4}:${chordOptions.ignoreBass}` : null;
 
   useEffect(() => {
-    chordA4Ref.current = chordA4;
+    chordOptionsRef.current = chordOptions;
     stabilizer.reset();
     smoother.reset();
-  }, [chordA4, stabilizer, smoother]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- chordKey stands in for chordOptions
+  }, [chordKey, stabilizer, smoother]);
 
   useEffect(() => {
     // Readings from the previous instrument's settings shouldn't be smoothed
@@ -83,12 +91,12 @@ export function usePitch(muted: boolean, detection: Detection, steadiness: Stead
     filled.current = Math.min(RING_SIZE, filled.current + samples.length / step);
 
     const now = Date.now();
-    const a4 = chordA4Ref.current;
-    if (a4 != null) {
+    const options = chordOptionsRef.current;
+    if (options != null) {
       if (filled.current < CHORD_WINDOW || now - lastAnalysis.current < CHORD_INTERVAL_MS) return;
       lastAnalysis.current = now;
       const window = latest(ring.current, writeIndex.current, CHORD_WINDOW);
-      setChord(stabilizer.push(detectChord(window, buffer.sampleRate, a4), now));
+      setChord(stabilizer.push(detectChord(window, buffer.sampleRate, options), now));
       return;
     }
 
@@ -154,7 +162,7 @@ export function usePitch(muted: boolean, detection: Detection, steadiness: Stead
     };
   }, [start, stream, smoother]);
 
-  const chordMode = chordA4 != null;
+  const chordMode = chordOptions != null;
   return {
     frequency: muted || chordMode ? null : frequency,
     chord: muted || !chordMode ? null : chord,

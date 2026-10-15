@@ -1,26 +1,30 @@
 import Svg, { Circle, Line, Rect, Text as SvgText } from 'react-native-svg';
 
-import { Fingering } from '../chords/fingerings';
+import { Fingering, FretInstrument } from '../chords/fingerings';
 import { colors } from '../theme';
 
-const STRING_NAMES = ['E', 'A', 'D', 'G', 'B', 'E'];
 const STRING_GAP = 24;
 const FRET_GAP = 28;
 const ROWS = 4;
 const LEFT = 30; // room for the "5fr" label
 const TOP = 22; // room for x / o markers
-const GRID_WIDTH = STRING_GAP * (STRING_NAMES.length - 1);
 const GRID_HEIGHT = FRET_GAP * ROWS;
-export const DIAGRAM_WIDTH = LEFT + GRID_WIDTH + 16;
 export const DIAGRAM_HEIGHT = TOP + GRID_HEIGHT + 24;
+
+export function diagramWidth(stringCount: number) {
+  return LEFT + STRING_GAP * (stringCount - 1) + 16;
+}
 
 type Props = {
   fingering: Fingering;
+  instrument: FretInstrument;
   color: string;
 };
 
-/** A standard chord box: strings vertical, frets horizontal, low E on the left. */
-export function ChordDiagram({ fingering, color }: Props) {
+/** A standard chord box: strings vertical (in playing order), frets horizontal. */
+export function ChordDiagram({ fingering, instrument, color }: Props) {
+  const stringNames = instrument.stringNames;
+  const gridWidth = STRING_GAP * (stringNames.length - 1);
   const fretted = fingering.frets.filter((f): f is number => f != null && f > 0);
   const highest = fretted.length ? Math.max(...fretted) : 0;
   // Shapes that fit in the first four frets are drawn from the nut.
@@ -30,7 +34,7 @@ export function ChordDiagram({ fingering, color }: Props) {
 
   return (
     <Svg
-      width={DIAGRAM_WIDTH}
+      width={diagramWidth(stringNames.length)}
       height={DIAGRAM_HEIGHT}
       accessibilityLabel={`Chord shape ${fingering.frets.map((f) => (f == null ? 'muted' : f)).join(', ')}`}
     >
@@ -39,14 +43,14 @@ export function ChordDiagram({ fingering, color }: Props) {
         <Line
           key={`fret-${i}`}
           x1={LEFT}
-          x2={LEFT + GRID_WIDTH}
+          x2={LEFT + gridWidth}
           y1={TOP + i * FRET_GAP}
           y2={TOP + i * FRET_GAP}
           stroke={i === 0 && baseFret === 1 ? colors.text : colors.faint}
           strokeWidth={i === 0 && baseFret === 1 ? 5 : 1.5}
         />
       ))}
-      {STRING_NAMES.map((name, s) => (
+      {stringNames.map((name, s) => (
         <Line
           key={`string-${s}`}
           x1={x(s)}
@@ -88,7 +92,7 @@ export function ChordDiagram({ fingering, color }: Props) {
         return <Circle key={s} cx={x(s)} cy={y(fret)} r={9} fill={color} />;
       })}
 
-      {STRING_NAMES.map((name, s) => (
+      {stringNames.map((name, s) => (
         <SvgText
           key={`name-${s}`}
           x={x(s)}

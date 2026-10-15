@@ -1,10 +1,46 @@
 import { Chord, chordPitchClasses, TEMPLATES } from './chords';
 
-/** Standard guitar tuning, low E to high E (MIDI). */
-export const STANDARD_TUNING = [40, 45, 50, 55, 59, 64];
+export type FretInstrumentId = 'guitar' | 'ukulele';
+
+/** An instrument chord shapes can be drawn for. */
+export type FretInstrument = {
+  id: FretInstrumentId;
+  name: string;
+  /** Open strings in playing order, left to right on a chord diagram (MIDI). */
+  tuning: number[];
+  stringNames: string[];
+  /**
+   * A re-entrant instrument's strings aren't in pitch order (a ukulele's G4
+   * is above its C4), so its shapes don't have a meaningful bass note and
+   * slash chords don't apply.
+   */
+  reentrant: boolean;
+  /** Cost per muted string: guitars mute strings routinely, ukuleles almost never. */
+  mutePenalty: number;
+};
+
+export const GUITAR: FretInstrument = {
+  id: 'guitar',
+  name: 'Guitar',
+  tuning: [40, 45, 50, 55, 59, 64],
+  stringNames: ['E', 'A', 'D', 'G', 'B', 'E'],
+  reentrant: false,
+  mutePenalty: 0.9,
+};
+
+export const UKULELE: FretInstrument = {
+  id: 'ukulele',
+  name: 'Ukulele',
+  tuning: [67, 60, 64, 69],
+  stringNames: ['G', 'C', 'E', 'A'],
+  reentrant: true,
+  mutePenalty: 6,
+};
+
+export const FRET_INSTRUMENTS: FretInstrument[] = [GUITAR, UKULELE];
 
 export type Fingering = {
-  /** Fret per string, low E first; 0 = open, null = muted. */
+  /** Fret per string, in the instrument's string order; 0 = open, null = muted. */
   frets: (number | null)[];
   /** A finger laid across several strings at one fret, if the shape needs it. */
   barre: { fret: number; from: number; to: number } | null;
@@ -20,9 +56,11 @@ const MAX_FINGERS = 4;
  * Playable fingerings for a chord, easiest first. Searches every hand
  * position for fret combinations that sound only chord tones, include all of
  * them (a 7th chord may drop its 5th), have the chord's bass as the lowest
- * note, and fit four fingers (counting a barre as one).
+ * note (except on re-entrant instruments), and fit four fingers (counting a
+ * barre as one).
  */
-export function findFingerings(chord: Chord, tuning = STANDARD_TUNING, limit = 3): Fingering[] {
+export function findFingerings(chord: Chord, instrument = GUITAR, limit = 3): Fingering[] {
+  const { tuning, reentrant, mutePenalty } = instrument;
   const tones = new Set(chordPitchClasses(chord.root, chord.quality));
   const fifth = (chord.root + 7) % 12;
   const isSeventh = (TEMPLATES.find((t) => t.quality === chord.quality)?.intervals.length ?? 0) === 4;
@@ -43,7 +81,7 @@ export function findFingerings(chord: Chord, tuning = STANDARD_TUNING, limit = 3
     const frets: (number | null)[] = new Array(tuning.length).fill(null);
     const visit = (string: number) => {
       if (string === tuning.length) {
-        const fingering = evaluate(frets, tuning, chord, tones, fifth, isSeventh, minStrings);
+        const fingering = evaluate(frets, tuning, reentrant, mutePenalty, chord, tones, fifth, isSeventh, minStrings);
         if (fingering) {
           const key = frets.map((f) => f ?? 'x').join(',');
           const existing = found.get(key);
@@ -83,6 +121,8 @@ function extends_(fuller: Fingering, shape: Fingering): boolean {
 function evaluate(
   frets: (number | null)[],
   tuning: number[],
+  reentrant: boolean,
+  mutePenalty: number,
   chord: Chord,
   tones: Set<number>,
   fifth: number,
@@ -91,7 +131,7 @@ function evaluate(
 ): Fingering | null {
   const sounding = frets.flatMap((f, s) => (f == null ? [] : [{ string: s, fret: f, midi: tuning[s] + f }]));
   if (sounding.length < minStrings) return null;
-  if (sounding[0].midi % 12 !== chord.bass) return null;
+  if (!reentrant && sounding[0].midi % 12 !== chord.bass) return null;
 
   const present = new Set(sounding.map((n) => n.midi % 12));
   let omittedFifth = false;
@@ -123,8 +163,16 @@ function evaluate(
       const to = atLowest[atLowest.length - 1].string;
       const covered = frets.slice(from, to + 1);
       if (covered.every((f) => f != null && f >= lowest)) {
-        barre = { fret: lowest, from, to };
-        fingers = 1 + fretted.filter((n) => n.fret !== lowest).length;
+        // Barre only when it's how the shape is really played: when separate
+        // fingers wouldn't be enough (F: 133211), or when a clean barre saves
+        // the fourth finger (ukulele A#: 3211). Otherwise use one finger per
+        // note (ukulele G: 0232, guitar A: x02220).
+        const withBarre = 1 + fretted.filter((n) => n.fret !== lowest).length;
+        const clean = covered.every((f) => f === lowest);
+        if (fingers > MAX_FINGERS || (fingers === MAX_FINGERS && clean)) {
+          barre = { fret: lowest, from, to };
+          fingers = withBarre;
+        }
       } else if (frets.slice(from, to + 1).some((f) => f != null && f > lowest)) {
         // Without a barre each note needs its own finger, and fingers can't
         // cross: a higher-fretted note between two lowest-fret notes (10321x)
@@ -146,7 +194,7 @@ function evaluate(
     highestFret * 0.4 +
     (highestFret - lowestFret) * 0.5 +
     // Full-sounding chords are preferred when they're playable.
-    muted * 0.9 +
+    muted * mutePenalty +
     innerMutes * 2 +
     (omittedFifth ? 1.5 : 0) +
     fingers * 0.4 +
@@ -163,7 +211,7 @@ function evaluate(
 /** How much more of the heard notes a shape must explain to jump the queue. */
 const CLEARLY_BETTER = 0.15;
 
-export function rankByHeard(fingerings: Fingering[], heard: number[], tuning = STANDARD_TUNING): Fingering[] {
+export function rankByHeard(fingerings: Fingering[], heard: number[], { tuning } = GUITAR): Fingering[] {
   if (fingerings.length === 0 || heard.length === 0) return fingerings;
   const heardSet = new Set(heard);
   // Only what a shape *explains* counts. Shape notes that weren't heard are

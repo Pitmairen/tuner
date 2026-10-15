@@ -2,16 +2,19 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { chordName, PITCH_NAMES } from '../chords/chords';
 import { ChordResult, CLEAR_MATCH } from '../chords/detectChord';
+import { FretInstrument } from '../chords/fingerings';
 import { colors } from '../theme';
 import { FingeringPanel } from './FingeringPanel';
 
 type Props = {
   result: ChordResult | null;
-  showFingering: boolean;
+  /** Instrument to show a chord diagram for, or null for none. */
+  fingering: FretInstrument | null;
 };
 
 /** Takes the gauge's place in chord mode: the chord name and the notes heard. */
-export function ChordReadout({ result, showFingering }: Props) {
+export function ChordReadout({ result, fingering }: Props) {
+  const showFingering = fingering != null;
   // The diagram needs room, so the name shrinks when it's on.
   const nameStyle = [styles.name, showFingering && styles.nameCompact];
   if (!result) {
@@ -45,12 +48,13 @@ export function ChordReadout({ result, showFingering }: Props) {
       <View style={[styles.status, { borderColor: accent, backgroundColor: `${accent}1A` }]}>
         <Text style={[styles.statusText, { color: accent }]}>{confident ? 'Clear match' : 'Unsure'}</Text>
       </View>
-      {showFingering && (
+      {fingering && (
         <FingeringPanel
           // Re-mounted per chord, so shapes are chosen once rather than shuffling as it rings.
-          key={result.name}
+          key={`${fingering.id}:${result.name}`}
           chord={chord}
           heard={notes.map((n) => n.midi)}
+          instrument={fingering}
           color={accent}
         />
       )}

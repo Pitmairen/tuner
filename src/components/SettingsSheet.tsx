@@ -1,7 +1,8 @@
 import * as Haptics from 'expo-haptics';
 import { ReactNode } from 'react';
-import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { FRET_INSTRUMENTS, FretInstrumentId } from '../chords/fingerings';
 import { colors } from '../theme';
 import { DEFAULT_A4, MAX_A4, MIN_A4 } from '../tuner/notes';
 import { Steadiness, STEADINESS_OPTIONS } from '../tuner/steadiness';
@@ -19,8 +20,8 @@ type Props = {
   onTransposeChange: (transpose: number) => void;
   /** False in chromatic and chord modes, which have no strings to shift. */
   transposeApplies: boolean;
-  showFingering: boolean;
-  onShowFingeringChange: (show: boolean) => void;
+  fingering: FretInstrumentId | 'off';
+  onFingeringChange: (fingering: FretInstrumentId | 'off') => void;
 };
 
 export function SettingsSheet({
@@ -33,8 +34,8 @@ export function SettingsSheet({
   transpose,
   onTransposeChange,
   transposeApplies,
-  showFingering,
-  onShowFingeringChange,
+  fingering,
+  onFingeringChange,
 }: Props) {
   return (
     <BottomSheet visible={visible} onClose={onClose}>
@@ -46,18 +47,14 @@ export function SettingsSheet({
         <View style={styles.row}>
           <View style={styles.label}>
             <Text style={styles.name}>Show fingering</Text>
-            <Text style={styles.description}>Chord mode: a guitar chord diagram for the chord heard</Text>
+            <Text style={styles.description} numberOfLines={2}>
+              Chord mode: a chord diagram for the chord heard
+            </Text>
           </View>
-          <Switch
-            value={showFingering}
-            onValueChange={(value) => {
-              Haptics.selectionAsync();
-              onShowFingeringChange(value);
-            }}
-            trackColor={{ false: colors.surfaceRaised, true: colors.inTune }}
-            thumbColor={colors.text}
-            ios_backgroundColor={colors.surfaceRaised}
-            accessibilityLabel="Show fingering in chord mode"
+          <Segmented
+            options={[{ id: 'off', label: 'Off' }, ...FRET_INSTRUMENTS.map(({ id, name }) => ({ id, label: name }))]}
+            value={fingering}
+            onChange={onFingeringChange}
           />
         </View>
       </ScrollView>
@@ -162,26 +159,39 @@ function NeedleSetting({ value, onChange }: { value: Steadiness; onChange: (valu
           {current.description}
         </Text>
       </View>
-      <View style={styles.segments} accessibilityRole="radiogroup">
-        {STEADINESS_OPTIONS.map(({ id, label }) => {
-          const active = id === value;
-          return (
-            <Pressable
-              key={id}
-              onPress={() => {
-                if (active) return;
-                Haptics.selectionAsync();
-                onChange(id);
-              }}
-              accessibilityRole="radio"
-              accessibilityState={{ checked: active }}
-              style={[styles.segment, active && styles.segmentActive]}
-            >
-              <Text style={[styles.segmentText, active && styles.segmentTextActive]}>{label}</Text>
-            </Pressable>
-          );
-        })}
-      </View>
+      <Segmented options={STEADINESS_OPTIONS} value={value} onChange={onChange} />
+    </View>
+  );
+}
+
+type SegmentedProps<T extends string> = {
+  options: { id: T; label: string }[];
+  value: T;
+  onChange: (value: T) => void;
+};
+
+/** A compact one-of-several control. */
+function Segmented<T extends string>({ options, value, onChange }: SegmentedProps<T>) {
+  return (
+    <View style={styles.segments} accessibilityRole="radiogroup">
+      {options.map(({ id, label }) => {
+        const active = id === value;
+        return (
+          <Pressable
+            key={id}
+            onPress={() => {
+              if (active) return;
+              Haptics.selectionAsync();
+              onChange(id);
+            }}
+            accessibilityRole="radio"
+            accessibilityState={{ checked: active }}
+            style={[styles.segment, active && styles.segmentActive]}
+          >
+            <Text style={[styles.segmentText, active && styles.segmentTextActive]}>{label}</Text>
+          </Pressable>
+        );
+      })}
     </View>
   );
 }

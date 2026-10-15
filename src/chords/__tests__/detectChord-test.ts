@@ -51,7 +51,7 @@ describe('detectChord', () => {
   it('follows the reference pitch', () => {
     // An A minor chord played with everything 32 cents flat (A4 = 432).
     const flat = (midi: number) => midi - 0.32;
-    const result = detectChord(strum([45, 52, 57, 60, 64].map(flat), { seed: 2, detuneCents: 2 }), SAMPLE_RATE, 432);
+    const result = detectChord(strum([45, 52, 57, 60, 64].map(flat), { seed: 2, detuneCents: 2 }), SAMPLE_RATE, { a4: 432 });
     expect(result?.name).toBe('Am');
   });
 });

@@ -24,7 +24,10 @@ export const CLEAR_MATCH = 0.2;
 type Peak = { frequency: number; amplitude: number };
 
 const MIN_NOTE = 28; // E1
-const MAX_NOTE = 88; // E6
+// C6. Chord shapes on guitar and ukulele top out around A5; above that a
+// "note" is almost always an overtone (two A4s on a ukulele put a strong
+// 3rd harmonic on E6).
+const MAX_NOTE = 84;
 const HARMONICS = 10;
 const MAX_NOTES = 6;
 const SILENCE_RMS = 0.005;
@@ -41,7 +44,21 @@ const SILENCE_RMS = 0.005;
  * 3. Pitch-class weights → best-matching chord template, with the bass note
  *    breaking ties between chords that share notes (Asus2 / Esus4).
  */
-export function detectChord(signal: Float32Array, sampleRate: number, a4 = 440): ChordResult | null {
+export type DetectOptions = {
+  a4?: number;
+  /**
+   * Treat the lowest note as meaningless: no slash chords, and no preference
+   * for a root that happens to be lowest. For re-entrant instruments like a
+   * ukulele, whose lowest note is rarely the bass of the chord.
+   */
+  ignoreBass?: boolean;
+};
+
+export function detectChord(
+  signal: Float32Array,
+  sampleRate: number,
+  { a4 = 440, ignoreBass = false }: DetectOptions = {},
+): ChordResult | null {
   let sumSquares = 0;
   for (let i = 0; i < signal.length; i++) sumSquares += signal[i] * signal[i];
   if (Math.sqrt(sumSquares / signal.length) < SILENCE_RMS) return null;
@@ -59,12 +76,12 @@ export function detectChord(signal: Float32Array, sampleRate: number, a4 = 440):
 
   const pitchClasses = new Array(12).fill(0);
   for (const { midi, weight } of notes) pitchClasses[midi % 12] = Math.max(pitchClasses[midi % 12], weight);
-  const bass = notes[0].midi % 12;
+  const lowest = notes[0].midi % 12;
 
-  const ranked = rankChords(pitchClasses, bass);
+  const ranked = rankChords(pitchClasses, ignoreBass ? null : lowest);
   const [best, second] = ranked;
   if (best.score <= 0) return null;
-  const chord = { root: best.root, quality: best.quality, bass };
+  const chord = { root: best.root, quality: best.quality, bass: ignoreBass ? best.root : lowest };
   return {
     chord,
     name: chordName(chord),
@@ -193,7 +210,7 @@ function salience(midi: number, a4: number, logFreqs: number[], amps: number[]) 
 
 type Ranked = { root: number; quality: Chord['quality']; score: number };
 
-function rankChords(pitchClasses: number[], bass: number): Ranked[] {
+function rankChords(pitchClasses: number[], bass: number | null): Ranked[] {
   const ranked: Ranked[] = [];
   for (let root = 0; root < 12; root++) {
     for (const { quality, intervals, prior } of TEMPLATES) {
