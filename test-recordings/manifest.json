@@ -1,1 +1,12 @@
-[]
+[
+  {
+    "file": "real-em-d-strum.wav",
+    "mode": "chords",
+    "expect": [
+      "Em",
+      "D",
+      "Em"
+    ],
+    "note": "Strumming Em, then D, then Em again, recorded in the app (first device test, 2026-10-15). Was heard as Em/B, Em/G#, D/A and a trailing Edim."
+  }
+]

@@ -1,4 +1,4 @@
-import { Chord, chordName, TEMPLATES } from './chords';
+import { Chord, chordName, chordPitchClasses, TEMPLATES } from './chords';
 import { magnitudeSpectrum } from './fft';
 
 export type DetectedNote = {
@@ -105,7 +105,13 @@ export function matchChord(
   if (pitchClasses.filter((w) => w > 0).length < 2) return null;
   const [best, second] = rankChords(pitchClasses, ignoreBass ? null : lowest);
   if (best.score <= 0) return null;
-  const chord = { root: best.root, quality: best.quality, bass: ignoreBass ? best.root : lowest };
+  // Name an inversion only when it's likely deliberate: the bass must be a
+  // chord tone, and a 5th in the bass is usually an extra open string (the
+  // A under a strummed open D), so D/A is reported as D.
+  const tones = chordPitchClasses(best.root, best.quality);
+  const fifth = (best.root + 7) % 12;
+  const slash = !ignoreBass && tones.includes(lowest) && lowest !== fifth;
+  const chord = { root: best.root, quality: best.quality, bass: slash ? lowest : best.root };
   return {
     chord,
     name: chordName(chord),

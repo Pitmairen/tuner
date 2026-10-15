@@ -49,6 +49,14 @@ const NOTE_FLOOR = 0.3;
 const OVERTONE_INTERVALS = [19, 28, 31, 34];
 /** Real strings at those intervals (Em's open B above its low E) are louder than this. */
 const OVERTONE_MAX_WEIGHT = 0.5;
+/**
+ * Low strings heard this recently still count as overtone sources: right
+ * after a strum the window is too short to hear them, but they're still
+ * ringing (the open A's 3rd harmonic turns a strummed D into Dsus2).
+ */
+const OVERTONE_SOURCE_MEMORY_S = 1;
+/** A chord change without a clear strum needs at least this confidence; near-ties don't switch. */
+const MIN_SWITCH_CONFIDENCE = 0.12;
 /** A strum this clear switches chords at once; otherwise two analyses must agree. */
 const INSTANT_CONFIDENCE = 0.35;
 /**
@@ -72,8 +80,13 @@ const BASS_CARRY_S = 0.3;
 const BASS_FLOOR = 0.12;
 /** Combined strength a note needs across analyses to be the bass, so one-off phantoms can't. */
 const BASS_EVIDENCE = 1;
-/** A note needs this many cycles in the window to be measured reliably. */
-const MIN_CYCLES = 6;
+/**
+ * A note needs this many cycles in the window to be measured reliably. In
+ * the short window right after a strum, low strings blur together: a real
+ * guitar's low E (82 Hz) and B (123 Hz) merge into a phantom G#2 between
+ * them. With 10 cycles, low strings only count once the window has grown.
+ */
+const MIN_CYCLES = 10;
 /** Silence after which the current chord clears. */
 const SILENCE_CLEAR_S = 1.5;
 /** A history entry shorter than this was a misreading and is dropped. */
@@ -206,11 +219,12 @@ export class SongFollower {
 
     const frame = new Array(12).fill(0);
     const notes = new Set<number>();
+    const sources = [...heard, ...this.lows.filter((l) => this.time - l.time <= OVERTONE_SOURCE_MEMORY_S)];
     for (const { midi, weight } of heard) {
       if (weight < NOTE_FLOOR) continue;
       const overtone =
         weight < OVERTONE_MAX_WEIGHT &&
-        heard.some((lower) => lower.weight >= weight && OVERTONE_INTERVALS.includes(midi - lower.midi));
+        sources.some((lower) => lower.weight >= weight && OVERTONE_INTERVALS.includes(midi - lower.midi));
       if (overtone) continue;
       frame[midi % 12] = Math.max(frame[midi % 12], weight);
       notes.add(midi);
@@ -282,7 +296,8 @@ export class SongFollower {
     const ready =
       isPowerChord && !this.candidate.strummed
         ? this.time - this.candidate.since >= POWER_CHORD_HOLD_S
-      : (isStrum && match.confidence >= INSTANT_CONFIDENCE) || this.candidate.count >= 2;
+      : (isStrum && match.confidence >= INSTANT_CONFIDENCE) ||
+          (this.candidate.count >= 2 && match.confidence >= MIN_SWITCH_CONFIDENCE);
     if (ready) {
       this.switchTo({ ...match, notes: heardNotes, pitchClasses: profile });
     }
