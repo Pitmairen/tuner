@@ -62,10 +62,10 @@ can be longer and helps people find it.
 
 - `play-icon-512.png`: 512×512 app icon for the listing
 - `feature-graphic.png`: 1024×500 feature graphic
-- Phone screenshots: at least 2 (up to 8), 16:9 or 9:16, min 320 px. Take them on
-  the phone: tuner in Standard, chord mode with a diagram, the tuning sheet,
-  settings. Avoid the Expo Go tools button (turn it off in Expo Go's menu, or
-  use a preview build).
+- `screenshots/`: six phone screenshots, upload in file-name order. Google needs
+  the long side at most 2× the short side and no alpha, so the phone's
+  1080×2424 captures are cropped (status bar and gesture bar removed) to
+  1080×2152 and saved as 24-bit PNG.
 
 ## App content (Policy → App content)
 

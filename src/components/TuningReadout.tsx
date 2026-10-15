@@ -48,7 +48,7 @@ export function TuningReadout({ reading, idleTarget, paused, chromatic, steadine
           {paused && target
             ? `Reference · ${target.frequency.toFixed(1)} Hz`
             : reading
-              ? `${reading.cents > 0 ? '+' : ''}${reading.cents.toFixed(0)} cents · ${reading.frequency.toFixed(1)} Hz`
+              ? `${formatCents(reading.cents)} cents · ${reading.frequency.toFixed(1)} Hz`
               : target
                 ? `${target.frequency.toFixed(1)} Hz`
                 : ' '}
@@ -72,6 +72,12 @@ export function TuningReadout({ reading, idleTarget, paused, chromatic, steadine
       </View>
     </View>
   );
+}
+
+/** Whole cents with a sign; values that round to zero show as plain "0", not "-0" or "+0". */
+function formatCents(cents: number): string {
+  const rounded = Math.round(cents);
+  return rounded > 0 ? `+${rounded}` : rounded < 0 ? `${rounded}` : '0';
 }
 
 function statusLabel(cents: number | null, chromatic: boolean): string {

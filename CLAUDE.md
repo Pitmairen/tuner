@@ -140,9 +140,10 @@ heard notes and costs ≤ 5 more than the first.
   (developer Pitmairen, progrper@gmail.com; live on GitHub Pages at
   https://pitmairen.github.io/tuner/privacy-policy.html, served from `docs/`), listing
   text and Play Console answers in `store/listing.md`, Play icon + feature
-  graphic in `store/` (from `generate-icons.mjs … assets store`), and an
+  graphic in `store/` (from `generate-icons.mjs … assets store`), cropped phone
+  screenshots in `store/screenshots/`, and an
   `eas.json` submit profile (internal track, draft). Still to do by the user:
-  developer account, screenshots, production build + `eas submit`, and for new
+  developer account, production build + `eas submit`, and for new
   personal accounts a closed test (≈12 testers × 14 days) before production.
 - Fingerpicking in chord mode is the weakest case (~1 s lag, passing chords).
 - Not recognised: 6, m6, 9, m(add9) and other extended chords.
