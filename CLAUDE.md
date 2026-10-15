@@ -142,9 +142,11 @@ heard notes and costs ≤ 5 more than the first.
   text and Play Console answers in `store/listing.md`, Play icon + feature
   graphic in `store/` (from `generate-icons.mjs … assets store`), cropped phone
   screenshots in `store/screenshots/`, and an
-  `eas.json` submit profile (internal track, draft). Still to do by the user:
-  developer account, production build + `eas submit`, and for new
-  personal accounts a closed test (≈12 testers × 14 days) before production.
+  `eas.json` submit profile (internal track, draft). The Play
+  Console app and listing are set up (existing developer account from before
+  Nov 2023, so no 12-tester closed test is required). Still to do: production
+  build, first AAB uploaded by hand (Google's API can't create the first
+  release), then `eas submit` for later builds.
 - Fingerpicking in chord mode is the weakest case (~1 s lag, passing chords).
 - Not recognised: 6, m6, 9, m(add9) and other extended chords.
 - Silence gate is a fixed level (−34 dB); a quiet phone mic could fall under it.
