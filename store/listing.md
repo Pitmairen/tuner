@@ -51,7 +51,9 @@ can be longer and helps people find it.
 (≈1,270)
 
 **App category:** Music & Audio
-**Tags (pick in console):** Tuner, Guitar, Music tools
+**Tags** (Store settings → Manage tags, max 5): Google has a fixed list; search
+it for "music", "instrument" and "audio" and pick the ones that fit a tuner and
+chord app. Tags are optional.
 
 **Developer name:** Pitmairen (must match the name in the privacy policy)
 **Contact details:** email `progrper@gmail.com` (shown publicly), website optional.
