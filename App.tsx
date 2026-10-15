@@ -4,9 +4,10 @@ import { Linking, Pressable, StyleSheet, Text, useWindowDimensions, View } from 
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
 import { Gauge } from './src/components/Gauge';
-import { MicOffIcon } from './src/components/icons';
+import { MicOffIcon, SlidersIcon } from './src/components/icons';
 import { NoteStrip } from './src/components/NoteStrip';
 import { TunedBanner } from './src/components/TunedBanner';
+import { SettingsSheet } from './src/components/SettingsSheet';
 import { StringSelector } from './src/components/StringSelector';
 import { TuningSheet } from './src/components/TuningSheet';
 import { centsColor, colors } from './src/theme';
@@ -38,6 +39,7 @@ function TunerScreen() {
   const tuning = [...TUNINGS, ...custom.tunings].find((t) => t.id === settings.tuningId) ?? TUNINGS[0];
   const [lockedString, setLockedString] = useState<number | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [sheetInstrument, setSheetInstrument] = useState<InstrumentId>(tuning.instrument);
   const [toneMode, setToneMode] = useState(false);
   const tone = useReferenceTone();
@@ -65,7 +67,17 @@ function TunerScreen() {
   return (
     <SafeAreaView style={styles.screen}>
       <View style={styles.header}>
-        <Text style={styles.brand}>tuner</Text>
+        <View style={styles.brandRow}>
+          <Text style={styles.brand}>tuner</Text>
+          <Pressable
+            onPress={() => setSettingsOpen(true)}
+            accessibilityLabel="Settings"
+            hitSlop={8}
+            style={({ pressed }) => [styles.settingsButton, pressed && { opacity: 0.6 }]}
+          >
+            <SlidersIcon color={colors.muted} />
+          </Pressable>
+        </View>
         <Pressable
           onPress={() => {
             setSheetInstrument(tuning.instrument);
@@ -76,9 +88,16 @@ function TunerScreen() {
             {chromatic ? 'Chromatic' : `${instrument(tuning.instrument).name} · ${tuning.name}`}
           </Text>
           <Text style={styles.tuningNotes}>{chromatic ? 'Any note' : tuning.notes.map(pitchClass).join(' ')}</Text>
-          {settings.a4 !== DEFAULT_A4 && <Text style={styles.a4Tag}>A{settings.a4}</Text>}
+          {/* Reminders that a setting is changed; tapping one opens settings. */}
+          {settings.a4 !== DEFAULT_A4 && (
+            <Pressable onPress={() => setSettingsOpen(true)} hitSlop={6} accessibilityLabel="Reference pitch settings">
+              <Text style={styles.settingTag}>A{settings.a4}</Text>
+            </Pressable>
+          )}
           {!chromatic && transposeLabel(settings.transpose) && (
-            <Text style={styles.a4Tag}>{transposeLabel(settings.transpose)}</Text>
+            <Pressable onPress={() => setSettingsOpen(true)} hitSlop={6} accessibilityLabel="Capo settings">
+              <Text style={styles.settingTag}>{transposeLabel(settings.transpose)}</Text>
+            </Pressable>
           )}
           <Text style={styles.chevron}>▾</Text>
         </Pressable>
@@ -163,11 +182,6 @@ function TunerScreen() {
         instrumentTab={sheetInstrument}
         onInstrumentTabChange={setSheetInstrument}
         a4={settings.a4}
-        onA4Change={(a4) => updateSettings({ a4 })}
-        steadiness={settings.steadiness}
-        onSteadinessChange={(steadiness) => updateSettings({ steadiness })}
-        transpose={settings.transpose}
-        onTransposeChange={(transpose) => updateSettings({ transpose })}
         customTunings={custom.tunings}
         onSaveCustom={custom.save}
         onDeleteCustom={custom.remove}
@@ -178,6 +192,18 @@ function TunerScreen() {
           setLockedString(null);
           setSheetOpen(false);
         }}
+      />
+
+      <SettingsSheet
+        visible={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        a4={settings.a4}
+        onA4Change={(a4) => updateSettings({ a4 })}
+        steadiness={settings.steadiness}
+        onSteadinessChange={(steadiness) => updateSettings({ steadiness })}
+        transpose={settings.transpose}
+        onTransposeChange={(transpose) => updateSettings({ transpose })}
+        chromatic={chromatic}
       />
     </SafeAreaView>
   );
@@ -198,6 +224,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 8,
     gap: 16,
+  },
+  brandRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  settingsButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   brand: {
     color: colors.text,
@@ -230,7 +271,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     letterSpacing: 1,
   },
-  a4Tag: {
+  settingTag: {
     color: colors.close,
     fontSize: 12,
     fontWeight: '700',

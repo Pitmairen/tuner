@@ -1,4 +1,4 @@
-import Svg, { Path } from 'react-native-svg';
+import Svg, { Circle, Path } from 'react-native-svg';
 
 /** A plectrum sweeping across strings. */
 export function StrumIcon({ color }: { color: string }) {
@@ -35,6 +35,23 @@ export function MicOffIcon({ color, size = 14 }: { color: string; size?: number 
         strokeLinecap="round"
         strokeLinejoin="round"
       />
+    </Svg>
+  );
+}
+
+/** Three slider tracks with knobs: the settings button. */
+export function SlidersIcon({ color, size = 22 }: { color: string; size?: number }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M4 6h8.5M17.5 6H20M4 12h2.5M11.5 12H20M4 18h10.5M19.5 18H20"
+        stroke={color}
+        strokeWidth={2}
+        strokeLinecap="round"
+      />
+      <Circle cx={15} cy={6} r={2.5} stroke={color} strokeWidth={2} />
+      <Circle cx={9} cy={12} r={2.5} stroke={color} strokeWidth={2} />
+      <Circle cx={17} cy={18} r={2.5} stroke={color} strokeWidth={2} />
     </Svg>
   );
 }

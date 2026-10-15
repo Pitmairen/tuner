@@ -1,21 +1,11 @@
 import * as Haptics from 'expo-haptics';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { colors } from '../theme';
-import { DEFAULT_A4, MAX_A4, MIN_A4, pitchClass } from '../tuner/notes';
-import { Steadiness, STEADINESS_OPTIONS } from '../tuner/steadiness';
-import {
-  CHROMATIC_ID,
-  InstrumentId,
-  INSTRUMENTS,
-  MAX_TRANSPOSE,
-  MIN_TRANSPOSE,
-  Tuning,
-  TuningString,
-  TUNINGS,
-} from '../tuner/tunings';
+import { pitchClass } from '../tuner/notes';
+import { CHROMATIC_ID, InstrumentId, INSTRUMENTS, Tuning, TuningString, TUNINGS } from '../tuner/tunings';
+import { BottomSheet } from './BottomSheet';
 import { TuningEditor } from './TuningEditor';
 
 type Props = {
@@ -25,12 +15,8 @@ type Props = {
   /** Which instrument's tunings are listed. */
   instrumentTab: InstrumentId;
   onInstrumentTabChange: (id: InstrumentId) => void;
+  /** For the custom tuning editor's frequencies. */
   a4: number;
-  onA4Change: (a4: number) => void;
-  steadiness: Steadiness;
-  onSteadinessChange: (steadiness: Steadiness) => void;
-  transpose: number;
-  onTransposeChange: (transpose: number) => void;
   customTunings: Tuning[];
   onSelect: (id: string) => void;
   onSaveCustom: (tuning: Tuning) => void;
@@ -45,11 +31,6 @@ export function TuningSheet({
   instrumentTab,
   onInstrumentTabChange,
   a4,
-  onA4Change,
-  steadiness,
-  onSteadinessChange,
-  transpose,
-  onTransposeChange,
   customTunings,
   onSelect,
   onSaveCustom,
@@ -57,7 +38,6 @@ export function TuningSheet({
   onPlay,
   onClose,
 }: Props) {
-  const insets = useSafeAreaInsets();
   const [editing, setEditing] = useState<{ tuning: Tuning; isNew: boolean } | null>(null);
 
   const close = () => {
@@ -100,77 +80,68 @@ export function TuningSheet({
   };
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={editing ? () => setEditing(null) : close}>
-      <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <Pressable style={[StyleSheet.absoluteFill, styles.backdrop]} onPress={close} />
-        <View style={[styles.sheet, { paddingBottom: insets.bottom + 16 }]}>
-          <View style={styles.handle} />
-          {editing ? (
-            <TuningEditor
-              key={editing.tuning.id}
-              initial={editing.tuning}
-              isNew={editing.isNew}
-              a4={a4}
-              onPlay={onPlay}
-              onCancel={() => setEditing(null)}
-              onSave={(tuning) => {
-                onSaveCustom(tuning);
-                setEditing(null);
-                onSelect(tuning.id);
-              }}
-              onDelete={
-                editing.isNew
-                  ? undefined
-                  : () => {
-                      onDeleteCustom(editing.tuning.id);
-                      setEditing(null);
-                    }
-              }
-            />
-          ) : (
-            <>
-              <Text style={styles.title}>Choose tuning</Text>
-              <ScrollView contentContainerStyle={styles.list}>
-                <ReferencePitch a4={a4} onChange={onA4Change} />
-                <NeedleSetting value={steadiness} onChange={onSteadinessChange} />
-                <Transpose value={transpose} onChange={onTransposeChange} />
-                <Pressable
-                  onPress={() => onSelect(CHROMATIC_ID)}
-                  style={({ pressed }) => [
-                    styles.item,
-                    selectedId === CHROMATIC_ID && styles.itemSelected,
-                    pressed && styles.itemPressed,
-                  ]}
-                >
-                  <View style={styles.itemText}>
-                    <Text style={styles.itemName}>Chromatic</Text>
-                    <Text style={styles.itemNotes}>Any note · no fixed strings</Text>
-                  </View>
-                  <View style={[styles.radio, selectedId === CHROMATIC_ID && styles.radioSelected]} />
-                </Pressable>
+    <BottomSheet visible={visible} onClose={close} onRequestClose={editing ? () => setEditing(null) : close}>
+      {editing ? (
+        <TuningEditor
+          key={editing.tuning.id}
+          initial={editing.tuning}
+          isNew={editing.isNew}
+          a4={a4}
+          onPlay={onPlay}
+          onCancel={() => setEditing(null)}
+          onSave={(tuning) => {
+            onSaveCustom(tuning);
+            setEditing(null);
+            onSelect(tuning.id);
+          }}
+          onDelete={
+            editing.isNew
+              ? undefined
+              : () => {
+                  onDeleteCustom(editing.tuning.id);
+                  setEditing(null);
+                }
+          }
+        />
+      ) : (
+        <>
+          <Text style={styles.title}>Choose tuning</Text>
+          <ScrollView contentContainerStyle={styles.list}>
+            <Pressable
+              onPress={() => onSelect(CHROMATIC_ID)}
+              style={({ pressed }) => [
+                styles.item,
+                selectedId === CHROMATIC_ID && styles.itemSelected,
+                pressed && styles.itemPressed,
+              ]}
+            >
+              <View style={styles.itemText}>
+                <Text style={styles.itemName}>Chromatic</Text>
+                <Text style={styles.itemNotes}>Any note · no fixed strings</Text>
+              </View>
+              <View style={[styles.radio, selectedId === CHROMATIC_ID && styles.radioSelected]} />
+            </Pressable>
 
-                <InstrumentTabs selected={instrumentTab} onChange={onInstrumentTabChange} />
+            <InstrumentTabs selected={instrumentTab} onChange={onInstrumentTabChange} />
 
-                {builtIn.map(renderItem)}
+            {builtIn.map(renderItem)}
 
-                <Text style={styles.section}>Custom</Text>
-                {custom.map(renderItem)}
-                <Pressable
-                  onPress={() => setEditing({ tuning: baseTuning, isNew: true })}
-                  style={({ pressed }) => [styles.create, pressed && styles.itemPressed]}
-                >
-                  <Text style={styles.createPlus}>+</Text>
-                  <View style={styles.itemText}>
-                    <Text style={styles.createText}>New custom tuning</Text>
-                    <Text style={styles.itemNotes}>Starts from {baseTuning.name}</Text>
-                  </View>
-                </Pressable>
-              </ScrollView>
-            </>
-          )}
-        </View>
-      </KeyboardAvoidingView>
-    </Modal>
+            <Text style={styles.section}>Custom</Text>
+            {custom.map(renderItem)}
+            <Pressable
+              onPress={() => setEditing({ tuning: baseTuning, isNew: true })}
+              style={({ pressed }) => [styles.create, pressed && styles.itemPressed]}
+            >
+              <Text style={styles.createPlus}>+</Text>
+              <View style={styles.itemText}>
+                <Text style={styles.createText}>New custom tuning</Text>
+                <Text style={styles.itemNotes}>Starts from {baseTuning.name}</Text>
+              </View>
+            </Pressable>
+          </ScrollView>
+        </>
+      )}
+    </BottomSheet>
   );
 }
 
@@ -199,136 +170,6 @@ function InstrumentTabs({ selected, onChange }: { selected: InstrumentId; onChan
   );
 }
 
-/** How much the needle is smoothed: responsiveness versus calm. */
-function NeedleSetting({ value, onChange }: { value: Steadiness; onChange: (value: Steadiness) => void }) {
-  const current = STEADINESS_OPTIONS.find((o) => o.id === value) ?? STEADINESS_OPTIONS[1];
-  return (
-    <View style={styles.reference}>
-      <View style={styles.itemText}>
-        <Text style={styles.itemName}>Needle</Text>
-        <Text style={styles.itemNotes} numberOfLines={2}>
-          {current.description}
-        </Text>
-      </View>
-      <View style={styles.segments} accessibilityRole="radiogroup">
-        {STEADINESS_OPTIONS.map(({ id, label }) => {
-          const active = id === value;
-          return (
-            <Pressable
-              key={id}
-              onPress={() => {
-                if (active) return;
-                Haptics.selectionAsync();
-                onChange(id);
-              }}
-              accessibilityRole="radio"
-              accessibilityState={{ checked: active }}
-              style={[styles.segment, active && styles.tabActive]}
-            >
-              <Text style={[styles.segmentText, active && styles.tabTextActive]}>{label}</Text>
-            </Pressable>
-          );
-        })}
-      </View>
-    </View>
-  );
-}
-
-/** A4 calibration: the pitch every other note is derived from. */
-/** Capo / transpose: shifts every string's target by whole semitones. */
-function Transpose({ value, onChange }: { value: number; onChange: (value: number) => void }) {
-  const step = (delta: number) => {
-    const next = value + delta;
-    if (next < MIN_TRANSPOSE || next > MAX_TRANSPOSE) return;
-    Haptics.selectionAsync();
-    onChange(next);
-  };
-  const semitones = (n: number) => `${n} semitone${n === 1 ? '' : 's'}`;
-  const description =
-    value === 0 ? 'Off' : value > 0 ? `Capo on fret ${value}` : `Strings ${semitones(-value)} lower`;
-
-  return (
-    <View style={styles.reference}>
-      <View style={styles.itemText}>
-        <Text style={styles.itemName}>Capo / transpose</Text>
-        <Text style={styles.itemNotes}>{description}</Text>
-        {value !== 0 && (
-          <Pressable onPress={() => onChange(0)} hitSlop={8}>
-            <Text style={styles.reset}>Reset</Text>
-          </Pressable>
-        )}
-      </View>
-      <Pressable
-        onPress={() => step(-1)}
-        disabled={value <= MIN_TRANSPOSE}
-        accessibilityLabel="Transpose down a semitone"
-        style={({ pressed }) => [styles.step, value <= MIN_TRANSPOSE && styles.disabled, pressed && styles.itemPressed]}
-      >
-        <Text style={styles.stepText}>−</Text>
-      </Pressable>
-      <View style={styles.a4Value} accessibilityLabel={`Transpose ${value} semitones`}>
-        <Text style={[styles.a4Number, value !== 0 && styles.a4Changed]}>
-          {value > 0 ? `+${value}` : value < 0 ? `−${-value}` : '0'}
-        </Text>
-        <Text style={styles.a4Unit}>semitones</Text>
-      </View>
-      <Pressable
-        onPress={() => step(1)}
-        disabled={value >= MAX_TRANSPOSE}
-        accessibilityLabel="Transpose up a semitone"
-        style={({ pressed }) => [styles.step, value >= MAX_TRANSPOSE && styles.disabled, pressed && styles.itemPressed]}
-      >
-        <Text style={styles.stepText}>+</Text>
-      </Pressable>
-    </View>
-  );
-}
-
-function ReferencePitch({ a4, onChange }: { a4: number; onChange: (a4: number) => void }) {
-  const step = (delta: number) => {
-    const next = a4 + delta;
-    if (next < MIN_A4 || next > MAX_A4) return;
-    Haptics.selectionAsync();
-    onChange(next);
-  };
-  const isDefault = a4 === DEFAULT_A4;
-
-  return (
-    <View style={styles.reference}>
-      <View style={styles.itemText}>
-        <Text style={styles.itemName}>Reference pitch</Text>
-        {isDefault ? (
-          <Text style={styles.itemNotes}>Standard concert pitch</Text>
-        ) : (
-          <Pressable onPress={() => onChange(DEFAULT_A4)} hitSlop={8}>
-            <Text style={styles.reset}>Reset to {DEFAULT_A4} Hz</Text>
-          </Pressable>
-        )}
-      </View>
-      <Pressable
-        onPress={() => step(-1)}
-        disabled={a4 <= MIN_A4}
-        accessibilityLabel="Lower reference pitch"
-        style={({ pressed }) => [styles.step, a4 <= MIN_A4 && styles.disabled, pressed && styles.itemPressed]}
-      >
-        <Text style={styles.stepText}>−</Text>
-      </Pressable>
-      <View style={styles.a4Value} accessibilityLabel={`A4 equals ${a4} hertz`}>
-        <Text style={[styles.a4Number, !isDefault && styles.a4Changed]}>{a4}</Text>
-        <Text style={styles.a4Unit}>A4 · Hz</Text>
-      </View>
-      <Pressable
-        onPress={() => step(1)}
-        disabled={a4 >= MAX_A4}
-        accessibilityLabel="Raise reference pitch"
-        style={({ pressed }) => [styles.step, a4 >= MAX_A4 && styles.disabled, pressed && styles.itemPressed]}
-      >
-        <Text style={styles.stepText}>+</Text>
-      </Pressable>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   tabs: {
     flexDirection: 'row',
@@ -344,22 +185,6 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 10,
   },
-  segments: {
-    flexDirection: 'row',
-    padding: 3,
-    borderRadius: 12,
-    backgroundColor: colors.surface,
-  },
-  segment: {
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderRadius: 9,
-  },
-  segmentText: {
-    color: colors.muted,
-    fontSize: 13,
-    fontWeight: '600',
-  },
   tabActive: {
     backgroundColor: colors.surfaceRaised,
   },
@@ -371,77 +196,6 @@ const styles = StyleSheet.create({
   tabTextActive: {
     color: colors.text,
     fontWeight: '700',
-  },
-  reference: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    marginBottom: 8,
-    borderRadius: 16,
-    backgroundColor: colors.background,
-  },
-  reset: {
-    color: colors.close,
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  step: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: colors.surfaceRaised,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  stepText: {
-    color: colors.text,
-    fontSize: 20,
-    fontWeight: '600',
-  },
-  disabled: {
-    opacity: 0.35,
-  },
-  a4Value: {
-    width: 56,
-    alignItems: 'center',
-  },
-  a4Number: {
-    color: colors.text,
-    fontSize: 20,
-    fontWeight: '800',
-    fontVariant: ['tabular-nums'],
-  },
-  a4Changed: {
-    color: colors.close,
-  },
-  a4Unit: {
-    color: colors.muted,
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  root: {
-    flex: 1,
-    justifyContent: 'flex-end',
-  },
-  backdrop: {
-    backgroundColor: 'rgba(0, 0, 0, 0.55)',
-  },
-  sheet: {
-    maxHeight: '85%',
-    backgroundColor: colors.surface,
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    paddingTop: 10,
-  },
-  handle: {
-    alignSelf: 'center',
-    width: 40,
-    height: 5,
-    borderRadius: 3,
-    backgroundColor: colors.faint,
-    marginBottom: 16,
   },
   title: {
     color: colors.text,
