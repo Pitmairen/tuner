@@ -15,6 +15,9 @@ export type TuningString = {
   frequency: number;
 };
 
+/** Pseudo-tuning id for chromatic mode: target the nearest note of any pitch. */
+export const CHROMATIC_ID = 'chromatic';
+
 export const TUNINGS: Tuning[] = [
   { id: 'standard', name: 'Standard', notes: ['E2', 'A2', 'D3', 'G3', 'B3', 'E4'] },
   { id: 'drop-d', name: 'Drop D', notes: ['D2', 'A2', 'D3', 'G3', 'B3', 'E4'] },

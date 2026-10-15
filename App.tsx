@@ -5,11 +5,12 @@ import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
 import { Gauge } from './src/components/Gauge';
 import { MicOffIcon } from './src/components/icons';
+import { NoteStrip } from './src/components/NoteStrip';
 import { StringSelector } from './src/components/StringSelector';
 import { TuningSheet } from './src/components/TuningSheet';
 import { centsColor, colors } from './src/theme';
 import { DEFAULT_A4, pitchClass } from './src/tuner/notes';
-import { TUNINGS } from './src/tuner/tunings';
+import { CHROMATIC_ID, TUNINGS } from './src/tuner/tunings';
 import { useCustomTunings } from './src/tuner/useCustomTunings';
 import { useReferenceTone } from './src/tuner/useReferenceTone';
 import { IN_TUNE_CENTS, useTuner } from './src/tuner/useTuner';
@@ -30,6 +31,8 @@ function TunerScreen() {
   // tuningId is tracked rather than the tuning itself so edits to (or deletion
   // of) a custom tuning apply immediately.
   const [settings, updateSettings] = useSettings();
+  const chromatic = settings.tuningId === CHROMATIC_ID;
+  // In chromatic mode this is only the starting point for a new custom tuning.
   const tuning = [...TUNINGS, ...custom.tunings].find((t) => t.id === settings.tuningId) ?? TUNINGS[0];
   const [lockedString, setLockedString] = useState<number | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -37,12 +40,18 @@ function TunerScreen() {
   const tone = useReferenceTone();
   // Stop listening while a reference note plays so the tuner doesn't hear itself.
   const paused = tone.playing != null;
-  const { reading, strings, tunedStrings, permission, retry } = useTuner(tuning, lockedString, settings.a4, paused);
+  const { reading, strings, tunedStrings, permission, retry } = useTuner({
+    tuning,
+    chromatic,
+    lockedString: chromatic ? null : lockedString,
+    a4: settings.a4,
+    muted: paused,
+  });
 
   const cents = reading?.cents ?? null;
   const playingString = strings.find((s) => s.note === tone.playing);
   const target = reading
-    ? strings[reading.stringIndex]
+    ? reading.target
     : (playingString ?? (lockedString != null ? strings[lockedString] : null));
   const accent = centsColor(cents);
 
@@ -52,9 +61,9 @@ function TunerScreen() {
         <Text style={styles.brand}>tuner</Text>
         <Pressable onPress={() => setSheetOpen(true)} style={({ pressed }) => [styles.tuningChip, pressed && { opacity: 0.7 }]}>
           <Text style={styles.tuningName} numberOfLines={1}>
-            {tuning.name}
+            {chromatic ? 'Chromatic' : tuning.name}
           </Text>
-          <Text style={styles.tuningNotes}>{tuning.notes.map(pitchClass).join(' ')}</Text>
+          <Text style={styles.tuningNotes}>{chromatic ? 'Any note' : tuning.notes.map(pitchClass).join(' ')}</Text>
           {settings.a4 !== DEFAULT_A4 && <Text style={styles.a4Tag}>A{settings.a4}</Text>}
           <Text style={styles.chevron}>▾</Text>
         </Pressable>
@@ -98,7 +107,9 @@ function TunerScreen() {
               </View>
             ) : (
               <View style={[styles.status, { borderColor: accent, backgroundColor: reading ? `${accent}1A` : 'transparent' }]}>
-                <Text style={[styles.statusText, { color: reading ? accent : colors.muted }]}>{statusLabel(cents)}</Text>
+                <Text style={[styles.statusText, { color: reading ? accent : colors.muted }]}>
+                  {statusLabel(cents, chromatic)}
+                </Text>
               </View>
             )}
           </View>
@@ -106,24 +117,29 @@ function TunerScreen() {
       )}
 
       <View style={styles.footer}>
-        <StringSelector
-          strings={strings}
-          activeString={reading?.stringIndex ?? null}
-          lockedString={lockedString}
-          tunedStrings={tunedStrings}
-          onLockChange={setLockedString}
-          toneMode={toneMode}
-          onToneModeChange={setToneMode}
-          playingNote={tone.playing}
-          onPlay={tone.play}
-          onStrum={() => tone.strum(strings)}
-          strumming={tone.strumming}
-        />
+        {chromatic ? (
+          <NoteStrip active={reading ? pitchClass(reading.target.note) : null} color={accent} />
+        ) : (
+          <StringSelector
+            strings={strings}
+            activeString={reading?.stringIndex ?? null}
+            lockedString={lockedString}
+            tunedStrings={tunedStrings}
+            onLockChange={setLockedString}
+            toneMode={toneMode}
+            onToneModeChange={setToneMode}
+            playingNote={tone.playing}
+            onPlay={tone.play}
+            onStrum={() => tone.strum(strings)}
+            strumming={tone.strumming}
+          />
+        )}
       </View>
 
       <TuningSheet
         visible={sheetOpen}
-        selected={tuning}
+        selectedId={chromatic ? CHROMATIC_ID : tuning.id}
+        baseTuning={tuning}
         a4={settings.a4}
         onA4Change={(a4) => updateSettings({ a4 })}
         customTunings={custom.tunings}
@@ -131,8 +147,8 @@ function TunerScreen() {
         onDeleteCustom={custom.remove}
         onPlay={tone.play}
         onClose={() => setSheetOpen(false)}
-        onSelect={(next) => {
-          updateSettings({ tuningId: next.id });
+        onSelect={(id) => {
+          updateSettings({ tuningId: id });
           setLockedString(null);
           setSheetOpen(false);
         }}
@@ -141,8 +157,8 @@ function TunerScreen() {
   );
 }
 
-function statusLabel(cents: number | null): string {
-  if (cents == null) return 'Play a string';
+function statusLabel(cents: number | null, chromatic: boolean): string {
+  if (cents == null) return chromatic ? 'Play a note' : 'Play a string';
   if (Math.abs(cents) <= IN_TUNE_CENTS) return 'In tune';
   return cents < 0 ? 'Tune up  ↑' : 'Tune down  ↓';
 }

@@ -1,8 +1,8 @@
 import * as Haptics from 'expo-haptics';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-import { centsBetween, frequencyToMidi, noteName } from './notes';
-import { Tuning, tuningStrings } from './tunings';
+import { centsBetween, frequencyToMidi, midiToFrequency, noteName } from './notes';
+import { Tuning, TuningString, tuningStrings } from './tunings';
 import { usePitch } from './usePitch';
 
 export const IN_TUNE_CENTS = 5;
@@ -14,19 +14,27 @@ const NO_STRINGS = new Set<number>();
 
 export type TunerReading = {
   frequency: number;
-  /** The nearest chromatic note, independent of the tuning. */
-  detected: { name: string; octave: number };
-  /** Index into the tuning's strings of the string being tuned. */
-  stringIndex: number;
-  /** Offset from the target string. Positive means sharp. */
+  /** The note being tuned to: a string of the tuning, or in chromatic mode the nearest note. */
+  target: TuningString;
+  /** Index into the tuning's strings of the target, or null in chromatic mode. */
+  stringIndex: number | null;
+  /** Offset from the target. Positive means sharp. */
   cents: number;
 };
 
-/**
- * Combines live pitch with the selected tuning. With `lockedString` null the
- * nearest string is picked automatically. While `muted`, nothing is detected.
- */
-export function useTuner(tuning: Tuning, lockedString: number | null, a4: number, muted = false) {
+type Options = {
+  tuning: Tuning;
+  /** Target the nearest semitone of any pitch instead of the tuning's strings. */
+  chromatic: boolean;
+  /** Force this string as the target; null picks the nearest automatically. */
+  lockedString: number | null;
+  a4: number;
+  /** While true, nothing is detected. */
+  muted: boolean;
+};
+
+/** Combines live pitch with the selected tuning (or chromatic mode). */
+export function useTuner({ tuning, chromatic, lockedString, a4, muted }: Options) {
   const { frequency, permission, retry } = usePitch(muted);
   const strings = useMemo(() => tuningStrings(tuning, a4), [tuning, a4]);
   // Keyed by tuning (including its notes, since custom tunings can be edited)
@@ -38,17 +46,20 @@ export function useTuner(tuning: Tuning, lockedString: number | null, a4: number
 
   const reading = useMemo<TunerReading | null>(() => {
     if (frequency == null) return null;
+    if (chromatic) {
+      const midi = Math.round(frequencyToMidi(frequency, a4));
+      const { name, octave } = noteName(midi);
+      const target = { note: `${name}${octave}`, midi, frequency: midiToFrequency(midi, a4) };
+      return { frequency, target, stringIndex: null, cents: centsBetween(frequency, target.frequency) };
+    }
     const stringIndex = lockedString ?? nearestString(strings, frequency);
-    return {
-      frequency,
-      detected: noteName(frequencyToMidi(frequency, a4)),
-      stringIndex,
-      cents: centsBetween(frequency, strings[stringIndex].frequency),
-    };
-  }, [frequency, lockedString, strings, a4]);
+    const target = strings[stringIndex];
+    return { frequency, target, stringIndex, cents: centsBetween(frequency, target.frequency) };
+  }, [frequency, chromatic, lockedString, strings, a4]);
 
   useEffect(() => {
-    if (!reading) {
+    // ✓ badges belong to strings, so chromatic mode has none.
+    if (!reading || reading.stringIndex == null) {
       pending.current = null;
       return;
     }

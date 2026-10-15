@@ -5,16 +5,19 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { colors } from '../theme';
 import { DEFAULT_A4, MAX_A4, MIN_A4, pitchClass } from '../tuner/notes';
-import { Tuning, TuningString, TUNINGS } from '../tuner/tunings';
+import { CHROMATIC_ID, Tuning, TuningString, TUNINGS } from '../tuner/tunings';
 import { TuningEditor } from './TuningEditor';
 
 type Props = {
   visible: boolean;
-  selected: Tuning;
+  /** A tuning id, or CHROMATIC_ID. */
+  selectedId: string;
+  /** Where a new custom tuning starts from. */
+  baseTuning: Tuning;
   a4: number;
   onA4Change: (a4: number) => void;
   customTunings: Tuning[];
-  onSelect: (tuning: Tuning) => void;
+  onSelect: (id: string) => void;
   onSaveCustom: (tuning: Tuning) => void;
   onDeleteCustom: (id: string) => void;
   onPlay: (string: TuningString) => void;
@@ -23,7 +26,8 @@ type Props = {
 
 export function TuningSheet({
   visible,
-  selected,
+  selectedId,
+  baseTuning,
   a4,
   onA4Change,
   customTunings,
@@ -42,11 +46,11 @@ export function TuningSheet({
   };
 
   const renderItem = (tuning: Tuning) => {
-    const isSelected = tuning.id === selected.id;
+    const isSelected = tuning.id === selectedId;
     return (
       <Pressable
         key={tuning.id}
-        onPress={() => onSelect(tuning)}
+        onPress={() => onSelect(tuning.id)}
         style={({ pressed }) => [styles.item, isSelected && styles.itemSelected, pressed && styles.itemPressed]}
       >
         <View style={styles.itemText}>
@@ -87,7 +91,7 @@ export function TuningSheet({
               onSave={(tuning) => {
                 onSaveCustom(tuning);
                 setEditing(null);
-                onSelect(tuning);
+                onSelect(tuning.id);
               }}
               onDelete={
                 editing.isNew
@@ -103,19 +107,35 @@ export function TuningSheet({
               <Text style={styles.title}>Choose tuning</Text>
               <ScrollView contentContainerStyle={styles.list}>
                 <ReferencePitch a4={a4} onChange={onA4Change} />
+                <Pressable
+                  onPress={() => onSelect(CHROMATIC_ID)}
+                  style={({ pressed }) => [
+                    styles.item,
+                    selectedId === CHROMATIC_ID && styles.itemSelected,
+                    pressed && styles.itemPressed,
+                  ]}
+                >
+                  <View style={styles.itemText}>
+                    <Text style={styles.itemName}>Chromatic</Text>
+                    <Text style={styles.itemNotes}>Any note · no fixed strings</Text>
+                  </View>
+                  <View style={[styles.radio, selectedId === CHROMATIC_ID && styles.radioSelected]} />
+                </Pressable>
+
+                <Text style={styles.section}>Guitar</Text>
 
                 {TUNINGS.map(renderItem)}
 
                 <Text style={styles.section}>Custom</Text>
                 {customTunings.map(renderItem)}
                 <Pressable
-                  onPress={() => setEditing({ tuning: selected, isNew: true })}
+                  onPress={() => setEditing({ tuning: baseTuning, isNew: true })}
                   style={({ pressed }) => [styles.create, pressed && styles.itemPressed]}
                 >
                   <Text style={styles.createPlus}>+</Text>
                   <View style={styles.itemText}>
                     <Text style={styles.createText}>New custom tuning</Text>
-                    <Text style={styles.itemNotes}>Starts from {selected.name}</Text>
+                    <Text style={styles.itemNotes}>Starts from {baseTuning.name}</Text>
                   </View>
                 </Pressable>
               </ScrollView>
