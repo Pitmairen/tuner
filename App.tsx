@@ -10,6 +10,8 @@ import { TuningSheet } from './src/components/TuningSheet';
 import { centsColor, colors } from './src/theme';
 import { pitchClass } from './src/tuner/notes';
 import { TUNINGS } from './src/tuner/tunings';
+import { useCustomTunings } from './src/tuner/useCustomTunings';
+import { useLastTuningId } from './src/tuner/useLastTuningId';
 import { useReferenceTone } from './src/tuner/useReferenceTone';
 import { IN_TUNE_CENTS, useTuner } from './src/tuner/useTuner';
 
@@ -24,7 +26,10 @@ export default function App() {
 
 function TunerScreen() {
   const { width } = useWindowDimensions();
-  const [tuning, setTuning] = useState(TUNINGS[0]);
+  const custom = useCustomTunings();
+  // Tracked by id so edits to (or deletion of) a custom tuning apply immediately.
+  const [tuningId, setTuningId] = useLastTuningId(TUNINGS[0].id);
+  const tuning = [...TUNINGS, ...custom.tunings].find((t) => t.id === tuningId) ?? TUNINGS[0];
   const [lockedString, setLockedString] = useState<number | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [toneMode, setToneMode] = useState(false);
@@ -45,7 +50,9 @@ function TunerScreen() {
       <View style={styles.header}>
         <Text style={styles.brand}>tuner</Text>
         <Pressable onPress={() => setSheetOpen(true)} style={({ pressed }) => [styles.tuningChip, pressed && { opacity: 0.7 }]}>
-          <Text style={styles.tuningName}>{tuning.name}</Text>
+          <Text style={styles.tuningName} numberOfLines={1}>
+            {tuning.name}
+          </Text>
           <Text style={styles.tuningNotes}>{tuning.notes.map(pitchClass).join(' ')}</Text>
           <Text style={styles.chevron}>▾</Text>
         </Pressable>
@@ -115,9 +122,13 @@ function TunerScreen() {
       <TuningSheet
         visible={sheetOpen}
         selected={tuning}
+        customTunings={custom.tunings}
+        onSaveCustom={custom.save}
+        onDeleteCustom={custom.remove}
+        onPlay={tone.play}
         onClose={() => setSheetOpen(false)}
         onSelect={(next) => {
-          setTuning(next);
+          setTuningId(next.id);
           setLockedString(null);
           setSheetOpen(false);
         }}
@@ -152,6 +163,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     alignSelf: 'flex-start',
+    maxWidth: '100%',
     gap: 10,
     paddingHorizontal: 16,
     paddingVertical: 10,
@@ -161,6 +173,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   tuningName: {
+    flexShrink: 1,
     color: colors.text,
     fontSize: 15,
     fontWeight: '700',

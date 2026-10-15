@@ -29,9 +29,11 @@ export type TunerReading = {
 export function useTuner(tuning: Tuning, lockedString: number | null, muted = false) {
   const { frequency, permission, retry } = usePitch(muted);
   const strings = useMemo(() => tuningStrings(tuning), [tuning]);
-  // Keyed by tuning so switching tunings starts with nothing checked off.
-  const [tuned, setTuned] = useState({ tuningId: tuning.id, strings: new Set<number>() });
-  const tunedStrings = tuned.tuningId === tuning.id ? tuned.strings : NO_STRINGS;
+  // Keyed by tuning (including its notes, since custom tunings can be edited)
+  // so switching or editing starts with nothing checked off.
+  const tuningKey = `${tuning.id}:${tuning.notes.join(',')}`;
+  const [tuned, setTuned] = useState({ tuningKey, strings: new Set<number>() });
+  const tunedStrings = tuned.tuningKey === tuningKey ? tuned.strings : NO_STRINGS;
   const pending = useRef<{ stringIndex: number; tuned: boolean; since: number } | null>(null);
 
   const reading = useMemo<TunerReading | null>(() => {
@@ -74,8 +76,8 @@ export function useTuner(tuning: Tuning, lockedString: number | null, muted = fa
     } else {
       next.delete(stringIndex);
     }
-    setTuned({ tuningId: tuning.id, strings: next });
-  }, [reading, tunedStrings, tuning.id]);
+    setTuned({ tuningKey, strings: next });
+  }, [reading, tunedStrings, tuningKey]);
 
   return { reading, strings, tunedStrings, permission, retry };
 }

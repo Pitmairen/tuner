@@ -5,6 +5,8 @@ export type Tuning = {
   name: string;
   /** Strings from lowest (6th) to highest (1st), in scientific pitch notation. */
   notes: string[];
+  /** Created by the user rather than built in. */
+  custom?: boolean;
 };
 
 export type TuningString = {
