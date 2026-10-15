@@ -4,7 +4,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { colors } from '../theme';
 import { pitchClass } from '../tuner/notes';
-import { CHROMATIC_ID, InstrumentId, INSTRUMENTS, Tuning, TuningString, TUNINGS } from '../tuner/tunings';
+import { CHORD_ID, CHROMATIC_ID, InstrumentId, INSTRUMENTS, Tuning, TuningString, TUNINGS } from '../tuner/tunings';
 import { BottomSheet } from './BottomSheet';
 import { TuningEditor } from './TuningEditor';
 
@@ -49,6 +49,21 @@ export function TuningSheet({
   const custom = customTunings.filter((t) => t.instrument === instrumentTab);
   // A new custom tuning copies the selected one when it's on this instrument.
   const baseTuning = [...builtIn, ...custom].find((t) => t.id === selectedId) ?? builtIn[0];
+
+  /** Chromatic and Chord: modes rather than tunings, listed above the instruments. */
+  const renderMode = (id: string, name: string, description: string) => (
+    <Pressable
+      key={id}
+      onPress={() => onSelect(id)}
+      style={({ pressed }) => [styles.item, selectedId === id && styles.itemSelected, pressed && styles.itemPressed]}
+    >
+      <View style={styles.itemText}>
+        <Text style={styles.itemName}>{name}</Text>
+        <Text style={styles.itemNotes}>{description}</Text>
+      </View>
+      <View style={[styles.radio, selectedId === id && styles.radioSelected]} />
+    </Pressable>
+  );
 
   const renderItem = (tuning: Tuning) => {
     const isSelected = tuning.id === selectedId;
@@ -107,20 +122,8 @@ export function TuningSheet({
         <>
           <Text style={styles.title}>Choose tuning</Text>
           <ScrollView contentContainerStyle={styles.list}>
-            <Pressable
-              onPress={() => onSelect(CHROMATIC_ID)}
-              style={({ pressed }) => [
-                styles.item,
-                selectedId === CHROMATIC_ID && styles.itemSelected,
-                pressed && styles.itemPressed,
-              ]}
-            >
-              <View style={styles.itemText}>
-                <Text style={styles.itemName}>Chromatic</Text>
-                <Text style={styles.itemNotes}>Any note · no fixed strings</Text>
-              </View>
-              <View style={[styles.radio, selectedId === CHROMATIC_ID && styles.radioSelected]} />
-            </Pressable>
+            {renderMode(CHROMATIC_ID, 'Chromatic', 'Any note · no fixed strings')}
+            {renderMode(CHORD_ID, 'Chord', 'Strum a chord to name it')}
 
             <InstrumentTabs selected={instrumentTab} onChange={onInstrumentTabChange} />
 

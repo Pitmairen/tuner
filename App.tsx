@@ -1,8 +1,12 @@
+import * as Haptics from 'expo-haptics';
 import { StatusBar } from 'expo-status-bar';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Linking, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
+import { PITCH_NAMES } from './src/chords/chords';
+import { CLEAR_MATCH } from './src/chords/detectChord';
+import { ChordReadout } from './src/components/ChordReadout';
 import { Gauge } from './src/components/Gauge';
 import { MicOffIcon, SlidersIcon } from './src/components/icons';
 import { NoteStrip } from './src/components/NoteStrip';
@@ -13,7 +17,7 @@ import { TuningSheet } from './src/components/TuningSheet';
 import { centsColor, colors } from './src/theme';
 import { noteHint } from './src/tuner/hint';
 import { DEFAULT_A4, pitchClass } from './src/tuner/notes';
-import { CHROMATIC_ID, instrument, InstrumentId, transposeLabel, TUNINGS } from './src/tuner/tunings';
+import { CHORD_ID, CHROMATIC_ID, instrument, InstrumentId, transposeLabel, TUNINGS } from './src/tuner/tunings';
 import { useCustomTunings } from './src/tuner/useCustomTunings';
 import { useReferenceTone } from './src/tuner/useReferenceTone';
 import { IN_TUNE_CENTS, useTuner } from './src/tuner/useTuner';
@@ -35,7 +39,10 @@ function TunerScreen() {
   // of) a custom tuning apply immediately.
   const [settings, updateSettings] = useSettings();
   const chromatic = settings.tuningId === CHROMATIC_ID;
-  // Unused in chromatic mode, where it falls back to guitar Standard.
+  const chordMode = settings.tuningId === CHORD_ID;
+  /** Chromatic and chord modes have no strings to tune. */
+  const freeform = chromatic || chordMode;
+  // Unused in freeform modes, where it falls back to guitar Standard.
   const tuning = [...TUNINGS, ...custom.tunings].find((t) => t.id === settings.tuningId) ?? TUNINGS[0];
   const [lockedString, setLockedString] = useState<number | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -45,10 +52,11 @@ function TunerScreen() {
   const tone = useReferenceTone();
   // Stop listening while a reference note plays so the tuner doesn't hear itself.
   const paused = tone.playing != null;
-  const { reading, strings, tunedStrings, celebration, permission, retry } = useTuner({
+  const { reading, chord, strings, tunedStrings, celebration, permission, retry } = useTuner({
     tuning,
     chromatic,
-    lockedString: chromatic ? null : lockedString,
+    chordMode,
+    lockedString: freeform ? null : lockedString,
     a4: settings.a4,
     transpose: settings.transpose,
     muted: paused,
@@ -63,6 +71,12 @@ function TunerScreen() {
   const accent = centsColor(cents);
   // Chromatic mode already shows the played note, so it needs no hint.
   const hint = reading && !chromatic && !paused ? noteHint(reading.cents, reading.playing, reading.target.note) : null;
+
+  // A light tap each time a new chord is recognised.
+  const chordName = chord?.name ?? null;
+  useEffect(() => {
+    if (chordName) Haptics.selectionAsync();
+  }, [chordName]);
 
   return (
     <SafeAreaView style={styles.screen}>
@@ -85,16 +99,18 @@ function TunerScreen() {
           }}
           style={({ pressed }) => [styles.tuningChip, pressed && { opacity: 0.7 }]}>
           <Text style={styles.tuningName} numberOfLines={1}>
-            {chromatic ? 'Chromatic' : `${instrument(tuning.instrument).name} · ${tuning.name}`}
+            {chordMode ? 'Chord' : chromatic ? 'Chromatic' : `${instrument(tuning.instrument).name} · ${tuning.name}`}
           </Text>
-          <Text style={styles.tuningNotes}>{chromatic ? 'Any note' : tuning.notes.map(pitchClass).join(' ')}</Text>
+          <Text style={styles.tuningNotes}>
+            {chordMode ? 'Strum to name it' : chromatic ? 'Any note' : tuning.notes.map(pitchClass).join(' ')}
+          </Text>
           {/* Reminders that a setting is changed; tapping one opens settings. */}
           {settings.a4 !== DEFAULT_A4 && (
             <Pressable onPress={() => setSettingsOpen(true)} hitSlop={6} accessibilityLabel="Reference pitch settings">
               <Text style={styles.settingTag}>A{settings.a4}</Text>
             </Pressable>
           )}
-          {!chromatic && transposeLabel(settings.transpose) && (
+          {!freeform && transposeLabel(settings.transpose) && (
             <Pressable onPress={() => setSettingsOpen(true)} hitSlop={6} accessibilityLabel="Capo settings">
               <Text style={styles.settingTag}>{transposeLabel(settings.transpose)}</Text>
             </Pressable>
@@ -113,6 +129,10 @@ function TunerScreen() {
           <Pressable onPress={retry}>
             <Text style={styles.permissionRetry}>Try again</Text>
           </Pressable>
+        </View>
+      ) : chordMode ? (
+        <View style={styles.main}>
+          <ChordReadout result={chord} />
         </View>
       ) : (
         <View style={styles.main}>
@@ -156,8 +176,19 @@ function TunerScreen() {
       )}
 
       <View style={styles.footer}>
-        {chromatic ? (
-          <NoteStrip active={reading ? pitchClass(reading.target.note) : null} color={accent} />
+        {chordMode ? (
+          <NoteStrip
+            active={chord ? chord.notes.map((n) => PITCH_NAMES[n.midi % 12]) : []}
+            root={chord ? PITCH_NAMES[chord.chord.root] : null}
+            color={chord && chord.confidence >= CLEAR_MATCH ? colors.inTune : colors.close}
+            caption="Chord · notes heard"
+          />
+        ) : chromatic ? (
+          <NoteStrip
+            active={reading ? [pitchClass(reading.target.note)] : []}
+            color={accent}
+            caption="Chromatic · any note"
+          />
         ) : (
           <StringSelector
             strings={strings}
@@ -178,7 +209,7 @@ function TunerScreen() {
 
       <TuningSheet
         visible={sheetOpen}
-        selectedId={chromatic ? CHROMATIC_ID : tuning.id}
+        selectedId={chordMode ? CHORD_ID : chromatic ? CHROMATIC_ID : tuning.id}
         instrumentTab={sheetInstrument}
         onInstrumentTabChange={setSheetInstrument}
         a4={settings.a4}
@@ -203,7 +234,7 @@ function TunerScreen() {
         onSteadinessChange={(steadiness) => updateSettings({ steadiness })}
         transpose={settings.transpose}
         onTransposeChange={(transpose) => updateSettings({ transpose })}
-        chromatic={chromatic}
+        transposeApplies={!freeform}
       />
     </SafeAreaView>
   );

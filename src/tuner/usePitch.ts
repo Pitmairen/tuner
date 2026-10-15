@@ -8,26 +8,34 @@ import {
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 
+import { ChordResult, detectChord } from '../chords/detectChord';
+import { ChordStabilizer } from '../chords/stabilizer';
 import { detectPitch } from './pitch';
 import { PitchSmoother, Steadiness } from './steadiness';
 import { Detection, WIDE_DETECTION } from './tunings';
 
 export type PermissionState = 'unknown' | 'granted' | 'denied';
 
+/** ~0.34 s at 48 kHz: the window the chord detector is designed for. */
+const CHORD_WINDOW = 16384;
 /** Holds the longest analysis window; shorter ones read its most recent samples. */
-const RING_SIZE = WIDE_DETECTION.windowSize;
+const RING_SIZE = Math.max(WIDE_DETECTION.windowSize, CHORD_WINDOW);
 const ANALYSIS_INTERVAL_MS = 60;
+/** Chords change slowly and cost more to analyse. */
+const CHORD_INTERVAL_MS = 250;
 /** How long to keep showing the last pitch after the string goes quiet. */
 const HOLD_MS = 1200;
 const MIN_CLARITY = 0.85;
 
 /**
- * Streams the microphone and reports a smoothed fundamental frequency,
- * or null when nothing is being played. While `muted`, input is ignored.
+ * Streams the microphone and reports a smoothed fundamental frequency, or
+ * null when nothing is being played. With `chordA4` set it recognises chords
+ * instead (using that reference pitch). While `muted`, input is ignored.
  */
-export function usePitch(muted: boolean, detection: Detection, steadiness: Steadiness) {
+export function usePitch(muted: boolean, detection: Detection, steadiness: Steadiness, chordA4: number | null) {
   const [permission, setPermission] = useState<PermissionState>('unknown');
   const [frequency, setFrequency] = useState<number | null>(null);
+  const [chord, setChord] = useState<ChordResult | null>(null);
 
   const ring = useRef(new Float32Array(RING_SIZE));
   const writeIndex = useRef(0);
@@ -37,6 +45,14 @@ export function usePitch(muted: boolean, detection: Detection, steadiness: Stead
   const [smoother] = useState(() => new PitchSmoother(steadiness));
   const mutedRef = useRef(muted);
   const detectionRef = useRef(detection);
+  const [stabilizer] = useState(() => new ChordStabilizer());
+  const chordA4Ref = useRef(chordA4);
+
+  useEffect(() => {
+    chordA4Ref.current = chordA4;
+    stabilizer.reset();
+    smoother.reset();
+  }, [chordA4, stabilizer, smoother]);
 
   useEffect(() => {
     // Readings from the previous instrument's settings shouldn't be smoothed
@@ -66,8 +82,17 @@ export function usePitch(muted: boolean, detection: Detection, steadiness: Stead
     }
     filled.current = Math.min(RING_SIZE, filled.current + samples.length / step);
 
-    const { windowSize, minFrequency, maxFrequency, decimation } = detectionRef.current;
     const now = Date.now();
+    const a4 = chordA4Ref.current;
+    if (a4 != null) {
+      if (filled.current < CHORD_WINDOW || now - lastAnalysis.current < CHORD_INTERVAL_MS) return;
+      lastAnalysis.current = now;
+      const window = latest(ring.current, writeIndex.current, CHORD_WINDOW);
+      setChord(stabilizer.push(detectChord(window, buffer.sampleRate, a4), now));
+      return;
+    }
+
+    const { windowSize, minFrequency, maxFrequency, decimation } = detectionRef.current;
     if (filled.current < windowSize || now - lastAnalysis.current < ANALYSIS_INTERVAL_MS) return;
     lastAnalysis.current = now;
 
@@ -80,7 +105,7 @@ export function usePitch(muted: boolean, detection: Detection, steadiness: Stead
       smoother.reset();
       setFrequency(null);
     }
-  }, [smoother]);
+  }, [smoother, stabilizer]);
 
   const { stream } = useAudioStream({ sampleRate: 48000, channels: 1, encoding: 'float32', onBuffer });
 
@@ -129,7 +154,13 @@ export function usePitch(muted: boolean, detection: Detection, steadiness: Stead
     };
   }, [start, stream, smoother]);
 
-  return { frequency: muted ? null : frequency, permission, retry: start };
+  const chordMode = chordA4 != null;
+  return {
+    frequency: muted || chordMode ? null : frequency,
+    chord: muted || !chordMode ? null : chord,
+    permission,
+    retry: start,
+  };
 }
 
 /** The most recent `length` samples of the ring, oldest first. */

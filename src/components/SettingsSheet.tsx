@@ -17,8 +17,8 @@ type Props = {
   onSteadinessChange: (steadiness: Steadiness) => void;
   transpose: number;
   onTransposeChange: (transpose: number) => void;
-  /** Transpose has no effect in chromatic mode; say so. */
-  chromatic: boolean;
+  /** False in chromatic and chord modes, which have no strings to shift. */
+  transposeApplies: boolean;
 };
 
 export function SettingsSheet({
@@ -30,13 +30,13 @@ export function SettingsSheet({
   onSteadinessChange,
   transpose,
   onTransposeChange,
-  chromatic,
+  transposeApplies,
 }: Props) {
   return (
     <BottomSheet visible={visible} onClose={onClose}>
       <Text style={styles.title}>Settings</Text>
       <ScrollView contentContainerStyle={styles.list}>
-        <Transpose value={transpose} onChange={onTransposeChange} chromatic={chromatic} />
+        <Transpose value={transpose} onChange={onTransposeChange} applies={transposeApplies} />
         <ReferencePitch a4={a4} onChange={onA4Change} />
         <NeedleSetting value={steadiness} onChange={onSteadinessChange} />
       </ScrollView>
@@ -45,9 +45,9 @@ export function SettingsSheet({
 }
 
 /** Capo / transpose: shifts every string's target by whole semitones. */
-type TransposeProps = { value: number; onChange: (value: number) => void; chromatic: boolean };
+type TransposeProps = { value: number; onChange: (value: number) => void; applies: boolean };
 
-function Transpose({ value, onChange, chromatic }: TransposeProps) {
+function Transpose({ value, onChange, applies }: TransposeProps) {
   const step = (delta: number) => {
     const next = value + delta;
     if (next < MIN_TRANSPOSE || next > MAX_TRANSPOSE) return;
@@ -55,8 +55,8 @@ function Transpose({ value, onChange, chromatic }: TransposeProps) {
     onChange(next);
   };
   const semitones = (n: number) => `${n} semitone${n === 1 ? '' : 's'}`;
-  const description = chromatic
-    ? 'Not used in chromatic mode'
+  const description = !applies
+    ? 'Only applies to string tunings'
     : value === 0
       ? 'Off'
       : value > 0

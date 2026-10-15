@@ -18,6 +18,9 @@ export type ChordResult = {
   pitchClasses: number[];
 };
 
+/** Confidence at or above which a result counts as a clear match. */
+export const CLEAR_MATCH = 0.2;
+
 type Peak = { frequency: number; amplitude: number };
 
 const MIN_NOTE = 28; // E1

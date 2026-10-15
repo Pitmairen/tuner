@@ -97,6 +97,8 @@ export type TuningString = {
 
 /** Pseudo-tuning id for chromatic mode: target the nearest note of any pitch. */
 export const CHROMATIC_ID = 'chromatic';
+/** Pseudo-tuning id for chord mode: name the chord being strummed. */
+export const CHORD_ID = 'chord';
 
 /** Built-in tunings. Guitar ids predate other instruments, hence no prefix. */
 export const TUNINGS: Tuning[] = [
