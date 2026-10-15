@@ -4,7 +4,9 @@
 
 A guitar/bass/ukulele tuner and chord recogniser for phones, built with Expo
 SDK 57 / React Native / TypeScript. Android is the main target (EAS project
-`@pitmairen/tuner`, app id `net.myr1.tuner`). All audio analysis runs on the
+`@pitmairen/tuner`, app id `net.myr1.tuner`). Code: public repo
+https://github.com/Pitmairen/tuner (MIT); commits are authored as
+`Pitmairen <progrper@gmail.com>` (set in this repo's git config). All audio analysis runs on the
 device in plain TypeScript; there is no backend.
 
 Deviation from AGENTS.md: there is one screen and no navigation, so Expo Router
@@ -135,7 +137,8 @@ heard notes and costs ≤ 5 more than the first.
 
 - Google Play: prepared in the repo: storage/overlay permissions blocked
   (`android.blockedPermissions`), privacy policy `docs/privacy-policy.html`
-  (developer Pitmairen, progrper@gmail.com; host it, e.g. GitHub Pages from `docs/`), listing
+  (developer Pitmairen, progrper@gmail.com; live on GitHub Pages at
+  https://pitmairen.github.io/tuner/privacy-policy.html, served from `docs/`), listing
   text and Play Console answers in `store/listing.md`, Play icon + feature
   graphic in `store/` (from `generate-icons.mjs … assets store`), and an
   `eas.json` submit profile (internal track, draft). Still to do by the user:
