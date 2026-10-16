@@ -146,6 +146,11 @@ closed-test requirement.
   https://pitmairen.github.io/tuner/privacy-policy.html (developer Pitmairen,
   progrper@gmail.com). Update its effective date when it changes.
 - Android permissions are trimmed in `app.json` (`android.blockedPermissions`).
+- R8 minify + resource shrinking are on for release builds (`expo-build-properties`;
+  Play flags low DEX obfuscation). Production builds keep R8's `mapping.txt`
+  as a build artifact: upload it with the release (App bundle explorer →
+  Downloads → ReTrace mapping file). Test a preview APK after native
+  dependency changes, since R8 can strip code that's only used by reflection.
 - Update flow: bump `version` in `app.json`, then
   `npx eas-cli@latest build --profile production --platform android`
   (version code is remote and auto-incremented). Upload the AAB in Play
