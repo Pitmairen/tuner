@@ -4,6 +4,8 @@ A tuner and chord recogniser for guitar, bass and ukulele, built with Expo /
 React Native. All audio analysis runs on the phone in TypeScript; there's no
 backend, account, ads or tracking.
 
+[Get it on Google Play](https://play.google.com/store/apps/details?id=net.myr1.tuner)
+
 - Needle tuner with automatic string detection, ✓ per tuned string, octave hints
 - Guitar, bass and ukulele tunings, custom tunings, capo/transpose, A4 calibration
 - Reference notes and a strum of the whole tuning

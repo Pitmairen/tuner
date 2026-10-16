@@ -133,20 +133,28 @@ heard notes and costs ≤ 5 more than the first.
 - `expo-audio` background playback is off on purpose (no foreground-service
   permissions, no iOS background audio).
 
+## Releases (Google Play)
+
+Live since 16 October 2026: https://play.google.com/store/apps/details?id=net.myr1.tuner
+(1.0.0, version code 2). Personal developer account from before Nov 2023, so no
+closed-test requirement.
+
+- Store material: listing text and Play Console answers in `store/listing.md`,
+  Play icon + feature graphic in `store/` (`generate-icons.mjs … assets store`),
+  phone screenshots in `store/screenshots/` (cropped to ≤ 2:1, no alpha).
+- Privacy policy: `docs/privacy-policy.html`, served by GitHub Pages at
+  https://pitmairen.github.io/tuner/privacy-policy.html (developer Pitmairen,
+  progrper@gmail.com). Update its effective date when it changes.
+- Android permissions are trimmed in `app.json` (`android.blockedPermissions`).
+- Update flow: bump `version` in `app.json`, then
+  `npx eas-cli@latest build --profile production --platform android`
+  (version code is remote and auto-incremented). Upload the AAB in Play
+  Console, or `npx eas-cli@latest submit --platform android` once a Google
+  service account key is set up (not done yet); the submit profile targets
+  the internal track as a draft, then promote to production.
+
 ## Open items
 
-- Google Play: prepared in the repo: storage/overlay permissions blocked
-  (`android.blockedPermissions`), privacy policy `docs/privacy-policy.html`
-  (developer Pitmairen, progrper@gmail.com; live on GitHub Pages at
-  https://pitmairen.github.io/tuner/privacy-policy.html, served from `docs/`), listing
-  text and Play Console answers in `store/listing.md`, Play icon + feature
-  graphic in `store/` (from `generate-icons.mjs … assets store`), cropped phone
-  screenshots in `store/screenshots/`, and an
-  `eas.json` submit profile (internal track, draft). The Play
-  Console app and listing are set up (existing developer account from before
-  Nov 2023, so no 12-tester closed test is required). Still to do: production
-  build, first AAB uploaded by hand (Google's API can't create the first
-  release), then `eas submit` for later builds.
 - Fingerpicking in chord mode is the weakest case (~1 s lag, passing chords).
 - Not recognised: 6, m6, 9, m(add9) and other extended chords.
 - Silence gate is a fixed level (−34 dB); a quiet phone mic could fall under it.
