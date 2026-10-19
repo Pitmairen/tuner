@@ -15,12 +15,7 @@
       }
     },
     "production": {
-      "autoIncrement": true,
-      "android": {
-        "buildArtifactPaths": [
-          "android/app/build/outputs/mapping/release/mapping.txt"
-        ]
-      }
+      "autoIncrement": true
     }
   },
   "submit": {
