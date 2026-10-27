@@ -60,6 +60,13 @@ describe('findFingerings', () => {
     expect(shapes(root, quality, bass)[0]).toBe(expected);
   });
 
+  it('plays a slash chord on at least four strings (Em/G as 322000, not xxx000)', () => {
+    expect(shapes('E', 'min', 'G')[0]).toBe('322000');
+    for (const f of findFingerings({ root: pc('E'), quality: 'min', bass: pc('G') }, GUITAR, 12)) {
+      expect(f.frets.filter((fret) => fret != null).length).toBeGreaterThanOrEqual(4);
+    }
+  });
+
   it('plays a passing bass note once, as the lowest note', () => {
     for (const [root, quality, bass] of [['A', 'maj', 'G#'], ['D', 'min', 'C'], ['C', 'maj', 'B'], ['E', 'min', 'D']] as const) {
       for (const f of findFingerings({ root: pc(root), quality, bass: pc(bass) }, GUITAR, 12)) {

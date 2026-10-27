@@ -74,7 +74,9 @@ export function findFingerings(chord: Chord, instrument = GUITAR, limit = 3): Fi
     !passing || frets.filter((f, s) => f != null && (tuning[s] + f) % 12 === chord.bass).length === 1;
   const fifth = (chord.root + 7) % 12;
   const isSeventh = (TEMPLATES.find((t) => t.quality === chord.quality)?.intervals.length ?? 0) === 4;
-  const minStrings = chord.quality === '5' ? 2 : 3;
+  // A slash chord on guitar needs a real voicing over its bass: as three
+  // strings, Em/G would be just the open G, B and E strings (xxx000).
+  const minStrings = chord.quality === '5' ? 2 : chord.bass !== chord.root && !reentrant ? 4 : 3;
 
   const found = new Map<string, Fingering>();
   for (let position = 0; position <= MAX_POSITION; position++) {
