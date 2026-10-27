@@ -1,4 +1,4 @@
-import { Chord, chordPitchClasses } from '../chords/chords';
+import { Chord, chordPitchClasses, TEMPLATES } from '../chords/chords';
 import { ChromaFrame } from './frames';
 
 /**
@@ -65,7 +65,7 @@ function spelling(key: { tonic: number; minor: boolean }): string[] {
 
 export function spellChord(chord: Chord, key: { tonic: number; minor: boolean }): string {
   const names = spelling(key);
-  const name = names[chord.root] + (chord.quality === 'min' ? 'm' : '');
+  const name = names[chord.root] + TEMPLATES.find((t) => t.quality === chord.quality)!.suffix;
   return chord.bass === chord.root ? name : `${name}/${names[chord.bass]}`;
 }
 
@@ -99,7 +99,8 @@ type State = { chord: Chord | null; treble: Float32Array; bass: Float32Array };
 const HARMONIC_INTERVALS = [0, 12, 19, 24];
 const HARMONIC_DECAY = 0.6;
 
-function template(pitchClasses: number[], root: number) {
+/** Treble and bass templates for a chord's notes, with their overtones folded in. */
+export function chordTemplate(pitchClasses: number[], root: number) {
   const treble = new Float32Array(12);
   for (const pc of pitchClasses) {
     HARMONIC_INTERVALS.forEach((interval, h) => {
@@ -136,7 +137,7 @@ function chordStates(): State[] {
   for (const quality of ['maj', 'min'] as const) {
     for (let root = 0; root < 12; root++) {
       const chord: Chord = { root, quality, bass: root };
-      result.push({ chord, ...template(chordPitchClasses(root, quality), root) });
+      result.push({ chord, ...chordTemplate(chordPitchClasses(root, quality), root) });
     }
   }
   result.push({ chord: null, treble: new Float32Array(12), bass: new Float32Array(12) });

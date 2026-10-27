@@ -121,6 +121,13 @@ shift (songs add half bars). Everything up to the chord Viterbi works frame by
 frame with ≤ 0.4 s lookahead, so a live version can reuse it.
 - What didn't help: a per-frame key bias (fragments keys), narrower HPSS
   windows (short chords weren't lost there: they were bass walks, A/G#).
+  Extending each found maj/min chord afterwards (7, maj7, add9, sus) from its
+  averaged chroma: at most 17% of the extended chords were on the sheet,
+  unless so strict that almost none were found. The added note is usually
+  present anyway (B is E's 3rd harmonic, so C looks like Cmaj7; held melody
+  notes), and real ones are split before that step (Cadd9 contains a G chord,
+  so it is read as C, G). Extended chords would have to be states in the
+  chord Viterbi itself.
 
 ## Testing
 

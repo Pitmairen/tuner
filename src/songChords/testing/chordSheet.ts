@@ -40,7 +40,9 @@ export function sheetMatch(segments: Segment[], chords: Set<string>): { share: n
     let inSheet = 0;
     for (const s of segments) {
       if (!s.chord) continue;
-      const name = PITCH_NAMES[(s.chord.root + k) % 12] + (s.chord.quality === 'min' ? 'm' : '');
+      // Reduced to major/minor like the sheet's chords: Am7 is Am, Cadd9 and Dsus4 count as C and D.
+      const minor = s.chord.quality === 'min' || s.chord.quality === 'm7';
+      const name = PITCH_NAMES[(s.chord.root + k) % 12] + (minor ? 'm' : '');
       if (chords.has(name)) inSheet += s.end - s.start;
     }
     const share = played > 0 ? inSheet / played : 0;

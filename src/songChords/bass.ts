@@ -20,6 +20,8 @@ const SLASH_INTERVALS: Record<Chord['quality'], number[]> = {
   min: [3, 9, 10],
   '7': [], maj7: [], m7: [], add9: [], sus2: [], sus4: [], dim: [], aug: [], '5': [],
 };
+/** Extended chords take the slash notes of the chord they extend (A7/G, Dm7/C, Cadd9/E). */
+const SLASH_BASE: Partial<Record<Chord['quality'], Chord['quality']>> = { '7': 'maj', maj7: 'maj', add9: 'maj', m7: 'min' };
 /** The bass note must have at least this share of the beat's bass chroma... */
 const MIN_SHARE = 0.3;
 /** ...and be this many times stronger than the root in the bass. */
@@ -29,7 +31,8 @@ type Beat = { segment: number; from: number; to: number; bass: number | null };
 
 export function addBassNotes(segments: Segment[], frames: ChromaFrame[], frameSeconds: number, beats: number[]): Segment[] {
   if (beats.length < 2) return segments;
-  const allowed = (chord: Chord | null) => (chord ? SLASH_INTERVALS[chord.quality].map((i) => (chord.root + i) % 12) : []);
+  const allowed = (chord: Chord | null) =>
+    chord ? SLASH_INTERVALS[SLASH_BASE[chord.quality] ?? chord.quality].map((i) => (chord.root + i) % 12) : [];
 
   // The song's beats, split at chord changes, each with its bass note.
   const pieces: Beat[] = [];
