@@ -138,5 +138,5 @@ function barPositions(isChange: boolean[], beatsPerBar: number): number[] {
 
 function sameChord(a: Chord | null, b: Chord | null) {
   if (!a || !b) return !a && !b;
-  return a.root === b.root && a.quality === b.quality;
+  return a.root === b.root && a.quality === b.quality && a.bass === b.bass;
 }
