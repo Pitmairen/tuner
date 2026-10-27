@@ -63,7 +63,15 @@ const MAX_FINGERS = 4;
  */
 export function findFingerings(chord: Chord, instrument = GUITAR, limit = 3): Fingering[] {
   const { tuning, reentrant, mutePenalty } = instrument;
-  const tones = new Set(chordPitchClasses(chord.root, chord.quality));
+  const chordTones = new Set(chordPitchClasses(chord.root, chord.quality));
+  // A bass note outside the chord, as in a bass walk (A/G#, Dm/C): it joins
+  // the notes the shape may (and must) play, as the lowest note and only
+  // once, so A/G# is an A with G# under it rather than an Amaj7 voicing.
+  // A ukulele has no bass string, so it plays the plain chord.
+  const passing = !reentrant && chord.bass !== chord.root && !chordTones.has(chord.bass);
+  const tones = passing ? new Set([...chordTones, chord.bass]) : chordTones;
+  const bassOnce = (frets: (number | null)[]) =>
+    !passing || frets.filter((f, s) => f != null && (tuning[s] + f) % 12 === chord.bass).length === 1;
   const fifth = (chord.root + 7) % 12;
   const isSeventh = (TEMPLATES.find((t) => t.quality === chord.quality)?.intervals.length ?? 0) === 4;
   const minStrings = chord.quality === '5' ? 2 : 3;
@@ -83,7 +91,7 @@ export function findFingerings(chord: Chord, instrument = GUITAR, limit = 3): Fi
     const frets: (number | null)[] = new Array(tuning.length).fill(null);
     const visit = (string: number) => {
       if (string === tuning.length) {
-        const fingering = evaluate(frets, tuning, reentrant, mutePenalty, chord, tones, fifth, isSeventh, minStrings);
+        const fingering = bassOnce(frets) && evaluate(frets, tuning, reentrant, mutePenalty, chord, tones, fifth, isSeventh, minStrings);
         if (fingering) {
           const key = frets.map((f) => f ?? 'x').join(',');
           const existing = found.get(key);

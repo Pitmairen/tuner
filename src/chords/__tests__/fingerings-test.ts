@@ -51,6 +51,31 @@ describe('findFingerings', () => {
     }
   });
 
+  it.each([
+    // Bass walks: the chord with a passing note under it.
+    ['A/G#', '402220', 'A', 'maj', 'G#'],
+    ['Dm/C', 'x30231', 'D', 'min', 'C'],
+    ['Am/G', '302210', 'A', 'min', 'G'],
+  ] as const)('plays %s (a bass outside the chord) as %s', (_, expected, root, quality, bass) => {
+    expect(shapes(root, quality, bass)[0]).toBe(expected);
+  });
+
+  it('plays a passing bass note once, as the lowest note', () => {
+    for (const [root, quality, bass] of [['A', 'maj', 'G#'], ['D', 'min', 'C'], ['C', 'maj', 'B'], ['E', 'min', 'D']] as const) {
+      for (const f of findFingerings({ root: pc(root), quality, bass: pc(bass) }, GUITAR, 12)) {
+        const notes = f.frets.flatMap((fret, s) => (fret == null ? [] : [GUITAR.tuning[s] + fret]));
+        expect(Math.min(...notes) % 12).toBe(pc(bass));
+        expect(notes.filter((n) => n % 12 === pc(bass))).toHaveLength(1);
+      }
+    }
+  });
+
+  it('plays a bass walk on ukulele as the plain chord (it has no bass string)', () => {
+    const walk = findFingerings({ root: pc('A'), quality: 'maj', bass: pc('G#') }, UKULELE);
+    const plain = findFingerings({ root: pc('A'), quality: 'maj', bass: pc('A') }, UKULELE);
+    expect(walk.map((f) => shape(f.frets))).toEqual(plain.map((f) => shape(f.frets)));
+  });
+
   it('finds at least one playable shape for every chord the detector can name', () => {
     const missing: string[] = [];
     for (let root = 0; root < 12; root++) {
