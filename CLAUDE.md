@@ -117,7 +117,10 @@ equal). Beats: tempo from onset autocorrelation (log-normal preference around
 by dynamic programming (Ellis 2007) on onsets plus harmonic change (strummed
 off-beats otherwise win); chord changes are likelier on beats. Bars: 4/4 vs 3/4
 from where chords change; bar lines found by a Viterbi over beats that may
-shift (songs add half bars). Everything up to the chord Viterbi works frame by
+shift (songs add half bars). The chart is simplified like a chord sheet
+(`BarOptions.simplify`): a one-beat chord between two of one root goes, and
+a major/minor flip of one root within a bar is settled; walks keep their
+root and are never touched (busy bars 14% → 7%, sheet agreement unchanged). Everything up to the chord Viterbi works frame by
 frame with ≤ 0.4 s lookahead, so a live version can reuse it.
 - What didn't help: a per-frame key bias (fragments keys), narrower HPSS
   windows (short chords weren't lost there: they were bass walks, A/G#).

@@ -1,4 +1,4 @@
-import { BarChart, chordBars } from './bars';
+import { BarChart, BarOptions, chordBars } from './bars';
 import { addBassNotes } from './bass';
 import { harmonicChange, onsetStrength, trackBeats } from './beats';
 import { recogniseChords, ModelOptions, Segment } from './chordModel';
@@ -22,6 +22,8 @@ export type AnalysisOptions = ModelOptions & {
   harmonicWeight?: number;
   /** Name slash chords where the bass plays another note (on by default). */
   slashChords?: boolean;
+  /** How the chart in bars is written. */
+  chart?: BarOptions;
 };
 
 /**
@@ -54,5 +56,5 @@ export function analyzeSong(
   const segments = options.slashChords === false ? chords : addBassNotes(chords, frames, FRAME_SECONDS, beats.frames);
   const beatTimes = beats.frames.map((t) => t * FRAME_SECONDS);
   onProgress(1);
-  return { tuningCents, beats: beatTimes, bpm: beats.bpm, segments, chart: chordBars(beatTimes, segments) };
+  return { tuningCents, beats: beatTimes, bpm: beats.bpm, segments, chart: chordBars(beatTimes, segments, options.chart) };
 }

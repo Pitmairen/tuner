@@ -31,18 +31,36 @@ export type BarChart = {
 /** 3/4 must explain this much more of the chord changes to beat the far more common 4/4. */
 const THREE_FOUR_MARGIN = 0.15;
 
-export function chordBars(beats: number[], segments: Segment[]): BarChart {
+export type BarOptions = {
+  /**
+   * Write the chart the way a chord sheet would: no one-beat chords that
+   * come and go between others, and no major/minor flips within a bar
+   * (on by default). Unclear thirds and passing notes make the raw chords
+   * flicker (B E Bm, E Em E) where the song plays one chord.
+   */
+  simplify?: boolean;
+};
+
+export function chordBars(beats: number[], segments: Segment[], { simplify = true }: BarOptions = {}): BarChart {
   if (beats.length < 2 || segments.length === 0) return { beatsPerBar: 4, bars: [] };
   // The chord of each beat: the one sounding a little after the beat, so a
   // change landing a frame late still counts for the right beat.
-  const beatSegments = beats.map((time, i) => {
+  const beatSegments: BeatChord[] = beats.map((time, i) => {
     const next = beats[i + 1] ?? time + (time - beats[i - 1]);
     const probe = time + 0.25 * (next - time);
-    return segments.find((s) => probe >= s.start && probe < s.end) ?? segments[segments.length - 1];
+    const segment = segments.find((s) => probe >= s.start && probe < s.end) ?? segments[segments.length - 1];
+    return { chord: segment.chord, key: segment.key };
   });
+  if (simplify) dropLoneBeats(beatSegments);
   const changes: number[] = [];
   for (let i = 1; i < beats.length; i++) {
-    if (beatSegments[i].chord && !sameChord(beatSegments[i].chord, beatSegments[i - 1].chord)) changes.push(i);
+    const chord = beatSegments[i].chord;
+    const before = beatSegments[i - 1].chord;
+    if (!chord || sameChord(chord, before)) continue;
+    // When simplifying, flips of the third (settled below, per bar) mustn't
+    // pull the bar lines into the middle of a bar.
+    if (simplify && before && chord.root === before.root && chord.bass === before.bass) continue;
+    changes.push(i);
   }
 
   // The meter that puts the most chord changes on beat one.
@@ -64,6 +82,9 @@ export function chordBars(beats: number[], segments: Segment[]): BarChart {
   // shifts is the song's extra half bar.
   const starts: number[] = [];
   for (let i = 0; i < beats.length; i++) if (i === 0 || position[i] === 0) starts.push(i);
+  if (simplify) {
+    starts.forEach((first, n) => settleThirds(beatSegments, first, starts[n + 1] ?? beats.length));
+  }
   const songEnd = beats[beats.length - 1] + (beats[beats.length - 1] - beats[beats.length - 2]);
 
   const bars: Bar[] = [];
@@ -134,6 +155,53 @@ function barPositions(isChange: boolean[], beatsPerBar: number): number[] {
     p = back[i * P + p];
   }
   return positions;
+}
+
+type BeatChord = { chord: Chord | null; key: Key };
+
+/**
+ * A one-beat chord with another root between two beats of one root (the E
+ * in B E Bm, the Bm in E Bm E) is a passing note or a misheard beat: it
+ * becomes the chord before it. Decided on the chords as heard, so removing
+ * one can't make its neighbour look lone; a bass walk keeps its root
+ * (A, A/G#) and is never touched.
+ */
+function dropLoneBeats(beats: BeatChord[]) {
+  const heard = beats.slice();
+  for (let i = 1; i < heard.length - 1; i++) {
+    const { chord } = heard[i];
+    const before = heard[i - 1].chord;
+    const after = heard[i + 1].chord;
+    if (!chord || !before || !after) continue;
+    if (before.root !== after.root || chord.root === before.root) continue;
+    beats[i] = heard[i - 1];
+  }
+}
+
+/**
+ * Within a bar, one root as both major and minor (E Em E) is one chord whose
+ * third wasn't clear: the bar gets the version heard on more beats (the
+ * first one if tied), keeping each beat's bass.
+ */
+function settleThirds(beats: BeatChord[], from: number, to: number) {
+  const count = new Map<number, { maj: number; min: number; first: 'maj' | 'min' }>();
+  for (let i = from; i < to; i++) {
+    const { chord } = beats[i];
+    if (!chord || (chord.quality !== 'maj' && chord.quality !== 'min')) continue;
+    const c = count.get(chord.root) ?? { maj: 0, min: 0, first: chord.quality };
+    c[chord.quality]++;
+    count.set(chord.root, c);
+  }
+  for (const [root, c] of count) {
+    if (!c.maj || !c.min) continue;
+    const quality = c.maj > c.min ? 'maj' : c.min > c.maj ? 'min' : c.first;
+    for (let i = from; i < to; i++) {
+      const { chord, key } = beats[i];
+      if (chord && chord.root === root && chord.quality !== quality && (chord.quality === 'maj' || chord.quality === 'min')) {
+        beats[i] = { chord: { ...chord, quality }, key };
+      }
+    }
+  }
 }
 
 function sameChord(a: Chord | null, b: Chord | null) {
