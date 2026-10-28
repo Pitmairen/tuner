@@ -120,7 +120,10 @@ from where chords change; bar lines found by a Viterbi over beats that may
 shift (songs add half bars). The chart is simplified like a chord sheet
 (`BarOptions.simplify`): a one-beat chord between two of one root goes, and
 a major/minor flip of one root within a bar is settled; walks keep their
-root and are never touched (busy bars 14% → 7%, sheet agreement unchanged). Everything up to the chord Viterbi works frame by
+root and are never touched (busy bars 14% → 7%, sheet agreement unchanged).
+A chord whose third is under a tenth of its root and fifth gets
+`unclearThird` (major/minor is then the key's guess, right ~96% of the
+time; pages can offer the other). Everything up to the chord Viterbi works frame by
 frame with ≤ 0.4 s lookahead, so a live version can reuse it.
 - What didn't help: a per-frame key bias (fragments keys), narrower HPSS
   windows (short chords weren't lost there: they were bass walks, A/G#).
@@ -131,6 +134,18 @@ frame with ≤ 0.4 s lookahead, so a live version can reuse it.
   notes), and real ones are split before that step (Cadd9 contains a G chord,
   so it is read as C, G). Extended chords would have to be states in the
   chord Viterbi itself.
+- Recognising chords per beat (each beat's mean chroma, one Viterbi step
+  per beat, changes then moved to the frame where the harmony moves): fixes
+  half-beat chords slipping in near changes, and every chord shown was more
+  often on the sheet (96.7% → 97.9% of chart beats), but that measure is
+  blind to missed chords. In sheet order (longest common subsequence of the
+  chart's chord changes with the sheet's) it found 83-85.5% of the sheets'
+  changes against 88.7% frame by frame, at any sharpness (38-300); by ear,
+  Time of Your Life lost its two-beat Cadd9s. Score engine changes in sheet
+  order, not only by whether the chords are on the sheet.
+- Giving each beat the chord sounding longest in it (instead of the one a
+  quarter into the beat) for the chart: as many songs got worse as better,
+  and with the same rule for bar lines the bars shifted.
 
 ## Testing
 
