@@ -47,7 +47,35 @@ export type Segment = {
   /** Spelled for the key: "Eb" in G minor, "D#m" in B major. "N" for no chord. */
   name: string;
   key: Key;
+  /**
+   * A major or minor chord whose third was barely heard (a power chord, or
+   * a melody without the third): major or minor is the key's guess, which
+   * is right most of the time but not for chords from outside the key.
+   */
+  unclearThird?: boolean;
 };
+
+/** A third weaker than this share of the root and fifth's mean is unclear. */
+const UNCLEAR_THIRD = 0.1;
+
+/**
+ * Marks the major and minor chords in `segments` whose third is unclear
+ * (see Segment.unclearThird), from the treble chroma over each one.
+ */
+export function markUnclearThirds(segments: Segment[], frames: ChromaFrame[], frameSeconds: number): Segment[] {
+  return segments.map((segment) => {
+    const { chord } = segment;
+    if (!chord || (chord.quality !== 'maj' && chord.quality !== 'min')) return segment;
+    const sum = new Float64Array(12);
+    const from = Math.floor(segment.start / frameSeconds);
+    const to = Math.min(frames.length, Math.ceil(segment.end / frameSeconds));
+    for (let t = from; t < to; t++) frames[t].treble.forEach((v, i) => (sum[i] += v));
+    const r = chord.root;
+    const third = Math.max(sum[(r + 3) % 12], sum[(r + 4) % 12]);
+    const rootAndFifth = (sum[r] + sum[(r + 7) % 12]) / 2;
+    return rootAndFifth > 0 && third < UNCLEAR_THIRD * rootAndFifth ? { ...segment, unclearThird: true } : segment;
+  });
+}
 
 const SHARPS = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const FLATS = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];

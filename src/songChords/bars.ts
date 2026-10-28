@@ -14,6 +14,8 @@ export type BarChord = {
   beats: number;
   start: number;
   end: number;
+  /** Major or minor is a guess on most of its beats (Segment.unclearThird, or settled within the bar). */
+  unclearThird?: boolean;
 };
 
 export type Bar = {
@@ -49,7 +51,7 @@ export function chordBars(beats: number[], segments: Segment[], { simplify = tru
     const next = beats[i + 1] ?? time + (time - beats[i - 1]);
     const probe = time + 0.25 * (next - time);
     const segment = segments.find((s) => probe >= s.start && probe < s.end) ?? segments[segments.length - 1];
-    return { chord: segment.chord, key: segment.key };
+    return { chord: segment.chord, key: segment.key, unclearThird: segment.unclearThird };
   });
   if (simplify) dropLoneBeats(beatSegments);
   const changes: number[] = [];
@@ -92,6 +94,7 @@ export function chordBars(beats: number[], segments: Segment[], { simplify = tru
     const last = starts[n + 1] ?? beats.length;
     const end = beats[last] ?? songEnd;
     const bar: Bar = { start: beats[first], end, chords: [] };
+    const unclearBeats: number[] = [];
     for (let i = first; i < last; i++) {
       const segment = beatSegments[i];
       const beatEnd = beats[i + 1] ?? end;
@@ -99,10 +102,15 @@ export function chordBars(beats: number[], segments: Segment[], { simplify = tru
       if (previous && sameChord(previous.chord, segment.chord)) {
         previous.beats++;
         previous.end = beatEnd;
+        if (segment.unclearThird) unclearBeats[unclearBeats.length - 1]++;
       } else {
         bar.chords.push({ chord: segment.chord, key: segment.key, beats: 1, start: beats[i], end: beatEnd });
+        unclearBeats.push(segment.unclearThird ? 1 : 0);
       }
     }
+    bar.chords.forEach((c, n) => {
+      if (2 * unclearBeats[n] > c.beats) c.unclearThird = true;
+    });
     bars.push(bar);
   });
   return { beatsPerBar, bars };
@@ -157,7 +165,7 @@ function barPositions(isChange: boolean[], beatsPerBar: number): number[] {
   return positions;
 }
 
-type BeatChord = { chord: Chord | null; key: Key };
+type BeatChord = { chord: Chord | null; key: Key; unclearThird?: boolean };
 
 /**
  * A one-beat chord with another root between two beats of one root (the E
@@ -181,7 +189,7 @@ function dropLoneBeats(beats: BeatChord[]) {
 /**
  * Within a bar, one root as both major and minor (E Em E) is one chord whose
  * third wasn't clear: the bar gets the version heard on more beats (the
- * first one if tied), keeping each beat's bass.
+ * first one if tied), keeping each beat's bass, and is marked unclear.
  */
 function settleThirds(beats: BeatChord[], from: number, to: number) {
   const count = new Map<number, { maj: number; min: number; first: 'maj' | 'min' }>();
@@ -197,8 +205,8 @@ function settleThirds(beats: BeatChord[], from: number, to: number) {
     const quality = c.maj > c.min ? 'maj' : c.min > c.maj ? 'min' : c.first;
     for (let i = from; i < to; i++) {
       const { chord, key } = beats[i];
-      if (chord && chord.root === root && chord.quality !== quality && (chord.quality === 'maj' || chord.quality === 'min')) {
-        beats[i] = { chord: { ...chord, quality }, key };
+      if (chord && chord.root === root && (chord.quality === 'maj' || chord.quality === 'min')) {
+        beats[i] = { chord: { ...chord, quality }, key, unclearThird: true };
       }
     }
   }

@@ -1,5 +1,5 @@
 import { chordPitchClasses } from '../../chords/chords';
-import { recogniseChords, spellChord } from '../chordModel';
+import { markUnclearThirds, recogniseChords, Segment, spellChord } from '../chordModel';
 import { ChromaFrame } from '../frames';
 
 const FRAME_SECONDS = 0.05;
@@ -66,5 +66,29 @@ describe('recogniseChords', () => {
     const segments = recogniseChords(frames, FRAME_SECONDS, {}, beats);
     expect(segments.map((s) => s.name)).toEqual(['C', 'G']);
     expect(segments[1].start).toBeCloseTo(2, 1);
+  });
+});
+
+describe('markUnclearThirds', () => {
+  const C_MAJOR = { tonic: 0, minor: false, name: 'C' };
+  const dMinor: Segment = { start: 0, end: 1, chord: { root: 2, quality: 'min', bass: 2 }, name: 'Dm', key: C_MAJOR };
+  /** One second of D and A (and `third`) in the treble. */
+  const heard = (third: number, strength: number) => {
+    const treble = new Float32Array(12);
+    treble[2] = 0.4;
+    treble[9] = 0.4;
+    treble[third] = strength;
+    return Array.from({ length: Math.round(1 / FRAME_SECONDS) }, () => ({ treble, bass: new Float32Array(12), energy: 1 }));
+  };
+
+  it('marks a chord heard without its third', () => {
+    // D and A only: D or Dm is the key's guess.
+    expect(markUnclearThirds([dMinor], heard(6, 0.01), FRAME_SECONDS)[0].unclearThird).toBe(true);
+  });
+
+  it('leaves a chord whose third is heard, either one', () => {
+    expect(markUnclearThirds([dMinor], heard(5, 0.2), FRAME_SECONDS)[0].unclearThird).toBeUndefined();
+    // The other third (F#) heard clearly is still a clear third, just not this chord's.
+    expect(markUnclearThirds([dMinor], heard(6, 0.2), FRAME_SECONDS)[0].unclearThird).toBeUndefined();
   });
 });

@@ -82,6 +82,23 @@ describe('chordBars', () => {
     expect(sheet(withSecondBar(['E', 'Em', 'E', 'E'])).text.startsWith('G | E | G | E')).toBe(true);
   });
 
+  it('marks a bar where the third flipped as unclear', () => {
+    const { beats, segments } = beatsAndSegments(withSecondBar(['E', 'Em', 'E', 'E']));
+    const second = chordBars(beats, segments).bars[1].chords;
+    expect(second).toHaveLength(1);
+    expect(second[0].unclearThird).toBe(true);
+    expect(chordBars(beats, segments).bars[0].chords[0].unclearThird).toBeUndefined();
+  });
+
+  it('passes on an unclear third from the segments', () => {
+    const { beats, segments } = beatsAndSegments(withSecondBar(['C', 'C', 'D', 'D']));
+    segments.forEach((s) => {
+      if (s.name === 'D') s.unclearThird = true;
+    });
+    const second = chordBars(beats, segments).bars[1].chords;
+    expect(second.map((c) => [chordName(c.chord!), c.unclearThird])).toEqual([['C', undefined], ['D', true]]);
+  });
+
   it('keeps everything as heard without simplify', () => {
     const text = sheet(withSecondBar(['D', 'E', 'D', 'D']), { simplify: false }).text;
     expect(text.startsWith('G | D E D | G | D E D')).toBe(true);
